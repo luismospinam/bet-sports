@@ -1,5 +1,6 @@
 --Docker command
 docker run --name betplaydb -e POSTGRES_PASSWORD=pass -d -p 5432:5432 -v C:\Users\LUIS\IdeaProjects\Betplay\db:/var/lib/postgresql/data  postgres
+docker run --name betplaydb -e POSTGRES_PASSWORD=pass -d -p 5432:5432 -v ${PWD}/db:/var/lib/postgresql/data  postgres
 
 
 -- Tables creation
@@ -8,6 +9,9 @@ CREATE TABLE bets (
     match_name TEXT,
     bet_name TEXT,
     bet_type TEXT,
+    game_date timestamp,
+    team1 TEXT,
+    team2 TEXT,
     line NUMERIC,
     odd numeric,
     date timestamp,
@@ -36,4 +40,22 @@ CREATE TABLE bet_change (
     action text,
     date timestamp,
     message TEXT
+);
+
+
+CREATE TABLE nba_matches (
+    id SERIAL PRIMARY KEY,
+    team1_id integer REFERENCES nba_team,
+    team1_quarter1_points numeric,
+    team1_quarter2_points numeric,
+    team1_quarter3_points numeric,
+    team1_quarter4_points numeric,
+    team1_total_points numeric,
+    team2_id integer REFERENCES nba_team,
+    team2_quarter1_points numeric,
+    team2_quarter2_points numeric,
+    team2_quarter3_points numeric,
+    team2_quarter4_points numeric,
+    team2_total_points numeric,
+    game_date timestamp
 );

@@ -2,6 +2,7 @@ package org.example.logic.basketball;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.constant.NbaTeamShortNames;
 import org.example.db.DB;
 import org.example.model.BasketballTeam;
 import org.example.util.HttpUtil;
@@ -20,39 +21,8 @@ public class BasketballTeamsService {
     private static boolean isUpdated = false;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final Connection dbConnection = DB.getConnection();
-    private static final Map<String, String> shortNameMap = Map.ofEntries(
-            entry("Hawks", "ATL"),
-            entry("Celtics", "BOS"),
-            entry("Pelicans", "NO"),
-            entry("Bulls", "CHI"),
-            entry("Cavaliers", "CLE"),
-            entry("Mavericks", "DAL"),
-            entry("Nuggets", "DEN"),
-            entry("Pistons", "DET"),
-            entry("Warriors", "GS"),
-            entry("Rockets", "HOU"),
-            entry("Pacers", "IND"),
-            entry("Clippers", "LAC"),
-            entry("Lakers", "LAL"),
-            entry("Heat", "MIA"),
-            entry("Bucks", "MIL"),
-            entry("Timberwolves", "MIN"),
-            entry("Nets", "BKN"),
-            entry("Knicks", "NY"),
-            entry("Magic", "ORL"),
-            entry("76ers", "PHI"),
-            entry("Suns", "PHX"),
-            entry("Trail Blazers", "POR"),
-            entry("Kings", "SAC"),
-            entry("Spurs", "SA"),
-            entry("Thunder", "OKC"),
-            entry("Jazz", "UTAH"),
-            entry("Wizards", "WSH"),
-            entry("Raptors", "TOR"),
-            entry("Grizzlies", "MEM"),
-            entry("Hornets", "CHA")
-    );
-
+    public static final Map<Integer, BasketballTeam> teamMap = new HashMap<>();
+    public static final Map<String, BasketballTeam> teamMapShortName = new HashMap<>();
 
     public void loadTeamStatistics() throws Exception {
         if (!isUpdated) {
@@ -65,7 +35,6 @@ public class BasketballTeamsService {
     }
 
     private void startProcess() throws Exception {
-        Map<Integer, BasketballTeam> teamMap = new HashMap<>();
         String response = HttpUtil.sendRequestMatch(URL);
         JsonNode jsonNode = objectMapper.readTree(response);
 
@@ -73,16 +42,18 @@ public class BasketballTeamsService {
         JsonNode teams = jsonNode.findValue("teams");
         for (JsonNode node : teams) {
             String alias = node.findPath("nickname").asText();
+            String shortName = NbaTeamShortNames.shortNameMap.get(alias);
             BasketballTeam team = new BasketballTeam(
                     node.findPath("team_id").asInt(),
                     node.findPath("location").asText(),
                     alias,
-                    shortNameMap.get(alias),
+                    shortName,
                     node.findPath("gp").asInt(),
                     node.findPath("avg_total").asDouble()
             );
 
             teamMap.put(team.getId(), team);
+            teamMapShortName.put(shortName, team);
         }
 
         JsonNode quarters = jsonNode.findValue("points");

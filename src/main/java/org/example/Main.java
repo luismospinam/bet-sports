@@ -1,5 +1,6 @@
 package org.example;
 
+import org.example.logic.basketball.BasketballOldMatchesService;
 import org.example.logic.basketball.BasketballPointsService;
 import org.example.logic.basketball.BasketballTeamsService;
 import org.example.model.EventBasketballPoints;
@@ -14,6 +15,9 @@ public class Main {
     public static void main(String[] args) throws Exception {
         BasketballTeamsService basketballTeamsService = new BasketballTeamsService();
         basketballTeamsService.loadTeamStatistics();
+
+        BasketballOldMatchesService basketballOldMatchesService = new BasketballOldMatchesService();
+        basketballOldMatchesService.populateOldMatches();
 
         BasketballPointsService basketballPointsService = new BasketballPointsService();
         List<String> matchesId = List.of("1020031450", "1020031446", "1020031442", "1020031438");
