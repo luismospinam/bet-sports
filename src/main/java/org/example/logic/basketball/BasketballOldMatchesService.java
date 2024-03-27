@@ -3,32 +3,77 @@ package org.example.logic.basketball;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.db.DB;
+import org.example.db.basketball.BasketballOldMatchesDao;
 import org.example.model.BasketballMatch;
 import org.example.util.HttpUtil;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 public class BasketballOldMatchesService {
+    private final BasketballOldMatchesDao basketballOldMatchesDao;
     private static final String MATCHES_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?region=ph&lang=en&contentorigin=espn&limit=100&calendartype=offdays&dates=%S";
-    private static final Connection dbConnection = DB.getConnection();
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final LocalDate SEASON_START_DATE = LocalDate.of(2023, 10, 24);
+
+
+    public BasketballOldMatchesService(BasketballOldMatchesDao basketballOldMatchesDao) {
+        this.basketballOldMatchesDao = basketballOldMatchesDao;
+    }
 
     public void populateOldMatches() throws Exception {
+        Optional<LocalDate> lastStoredMatchDate = basketballOldMatchesDao.getLastStoredMatchDate();
+        if (lastStoredMatchDate.isEmpty()) {
+            loadAllPreviousMatches(SEASON_START_DATE);
+        } else {
+            loadAllPreviousMatches(lastStoredMatchDate.get().plusDays(1));
+        }
+    }
+
+    private void loadAllPreviousMatches(LocalDate lowerLimitDate) throws Exception {
         LocalDate currentLocalDate = LocalDate.now().minusDays(1);
-        String currentDate = currentLocalDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String currentUrl = String.format(MATCHES_URL, currentDate);
+        System.out.printf("Starting to load NBA previous matches from %s to %s", lowerLimitDate, currentLocalDate);
+        System.out.println();
 
-        String response = HttpUtil.sendRequestMatch(currentUrl);
-        JsonNode jsonNode = objectMapper.readTree(response);
-        JsonNode matches = jsonNode.findValue("events");
+        while (currentLocalDate.isAfter(lowerLimitDate) || currentLocalDate.isEqual(lowerLimitDate)) {
+            TimeUnit.SECONDS.sleep(5); //to avoid getting blocked
+            System.out.println("Finding games on " + currentLocalDate);
+            String currentDate = currentLocalDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String currentUrl = String.format(MATCHES_URL, currentDate);
 
-        for (JsonNode match : matches) {
-            String[] teams = match.findValue("shortName").textValue().split(" @ ");
+            String response = HttpUtil.sendRequestMatch(currentUrl);
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode matches = jsonNode.findValue("events");
+
+            for (JsonNode match : matches) {
+                Optional<BasketballMatch> basketballMatch = getBasketballMatch(match);
+                if (basketballMatch.isPresent()) {
+                    basketballOldMatchesDao.persistMatch(basketballMatch.get());
+                }
+            }
+            currentLocalDate = currentLocalDate.minusDays(1);
+        }
+        System.out.println("Finished loading NBA previous matches");
+    }
+
+    private Optional<BasketballMatch> getBasketballMatch(JsonNode match) {
+        try {
+            String shortName = match.findValue("shortName").textValue();
+            String[] teams = shortName.contains(" @ ") ? shortName.split(" @ ") : shortName.split(" VS ");
+            if (teams.length != 2) {
+                System.out.println("No teams found in the match" + match);
+                return Optional.empty();
+            }
+
             String localTeamName = teams[1];
             String visitorTeamName = teams[0];
 
@@ -54,27 +99,14 @@ public class BasketballOldMatchesService {
                     lineScoresVisitorTeam.get(2).findPath("value").doubleValue(),
                     lineScoresVisitorTeam.get(3).findPath("value").doubleValue(),
                     Double.valueOf(visitorTeamData.findValue("score").textValue()),
-                    Instant.from(formatter.parse(competitions.findValue("date").textValue()))
+                    Instant.from(formatter.parse(competitions.findValue("date").textValue())).minus(5, ChronoUnit.HOURS)
             );
-
-            persistMatch(basketballMatch);
+            return Optional.of(basketballMatch);
+        } catch (Exception e) {
+            System.out.println("Error in match " + match);
         }
-    }
 
-    private void persistMatch(BasketballMatch basketballMatch) throws SQLException {
-        String query = """
-                INSERT INTO nba_matches (team1_id, team1_quarter1_points, team1_quarter2_points, team1_quarter3_points, team1_quarter4_points, team1_total_points,
-                team2_id, team2_quarter1_points, team2_quarter2_points, team2_quarter3_points, team2_quarter4_points, team2_total_points, game_date)
-                VALUES (%d, %f, %f, %f, %f, %f, %d, %f, %f, %f, %f, %f, '%s');
-                """;
-
-        String finalQuery = String.format(query, basketballMatch.team1Id(), basketballMatch.team1Quarter1Points(), basketballMatch.team1Quarter2Points(),
-                basketballMatch.team1Quarter3Points(), basketballMatch.team1Quarter4Points(), basketballMatch.team1TotalPoints(),
-                basketballMatch.team2Id(), basketballMatch.team2Quarter1Points(), basketballMatch.team2Quarter2Points(),
-                basketballMatch.team2Quarter3Points(), basketballMatch.team2Quarter4Points(), basketballMatch.team2TotalPoints(),
-                basketballMatch.gameDate());
-        PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
-        preparedStatement.execute();
+        return Optional.empty();
     }
 }
 

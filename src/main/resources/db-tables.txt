@@ -3,7 +3,10 @@ docker run --name betplaydb -e POSTGRES_PASSWORD=pass -d -p 5432:5432 -v C:\User
 docker run --name betplaydb -e POSTGRES_PASSWORD=pass -d -p 5432:5432 -v ${PWD}/db:/var/lib/postgresql/data  postgres
 
 
+-----------------------------------------------------------------------------------------------
 -- Tables creation
+-----------------------------------------------------------------------------------------------
+
 CREATE TABLE bets (
     id SERIAL PRIMARY KEY,
     match_name TEXT,
@@ -59,3 +62,102 @@ CREATE TABLE nba_matches (
     team2_total_points numeric,
     game_date timestamp
 );
+
+
+-----------------------------------------------------------------------------------------------
+-- useful queries
+-----------------------------------------------------------------------------------------------
+
+-- Apuesta Minimo de puntos en cada partido
+with minimo_partido
+as (select min(line) line, match_name from BETS group by match_name)
+select *
+from BETS B, minimo_partido mp
+where MP.match_name = b.match_name and MP.line = b.line
+	and b.bet_type  = 'OT_OVER'
+order by b.line
+
+-- Apuesta puntos debajo de
+with maximo_partido
+as (select max(line) line, match_name from BETS group by match_name)
+select *
+from BETS B, maximo_partido mp
+where MP.match_name = b.match_name and MP.line = b.line
+	and b.bet_type  = 'OT_UNDER'
+order by b.line
+
+
+-- Cuanto ha cambiado la cuota de cierto partido y line
+select b.match_name , b.bet_name, b.bet_type, b.line, bc.old_odd , bc.new_odd , bc."action" , bc."date" , bc.message
+from bet_change bc, bets b
+where bc.bets_id = b.id
+	and line = 191.500000 and b.bet_type = 'OT_OVER' and b.match_name = 'Cleveland Cavaliers - Charlotte Hornets'
+order by bc."date";
+
+
+-- Promedio de todos los equipos
+select sum(first_quarter_average) / count(*) primer,
+	   sum(second_quarter_average) / count(*) segundo,
+	   sum(third_quarter_average) / count(*) tercer,
+	   sum(fourth_quarter_average) / count(*) cuarto,
+	   sum(fourth_quarter_average + third_quarter_average + second_quarter_average + first_quarter_average) / count(*) total
+from nba_team nt
+
+-- Promedio de ciertos equipos
+select sum(first_quarter_average) / count(*) primer,
+	   sum(second_quarter_average) / count(*) segundo,
+	   sum(third_quarter_average) / count(*) tercer,
+	   sum(fourth_quarter_average) / count(*) cuarto,
+	   sum(fourth_quarter_average + third_quarter_average + second_quarter_average + first_quarter_average) / count(*) total
+from nba_team nt
+where alias in ('Cavaliers', 'Hornets')
+
+-- Apuestas con nombre de cada equipo y sus promedios (Puntos Debajo de)
+select match_name, nt1.alias, nt1.total_average, nt2.alias, nt2.total_average, b.bet_type , b.line , b.odd
+from bets b, nba_team nt1, nba_team nt2
+where b.team1 like '%' || nt1.alias || '%' and
+	b.team2 like '%' || nt2.alias || '%' and
+	b.bet_type  = 'OT_OVER'
+order by b.line
+
+-- Apuestas con nombre de cada equipo y sus promedios (Puntos encima de)
+select match_name, nt1.alias, nt1.total_average, nt2.alias, nt2.total_average, b.bet_type , b.line , b.odd
+from bets b, nba_team nt1, nba_team nt2
+where b.team1 like '%' || nt1.alias || '%' and
+	b.team2 like '%' || nt2.alias || '%' and
+	b.bet_type  = 'OT_UNDER'
+order by b.line desc
+
+
+-- Partidos de un equipos de local y de visitiante
+select nt1.alias, 'Local', nmm.team1_quarter1_points , nmm.team1_quarter2_points , nmm.team1_quarter3_points , nmm.team1_quarter4_points , nmm.team1_total_points ,
+	   nmm.game_date
+from nba_matches nmm, nba_team nt1
+where nmm.team1_id = nt1.id
+	and (nt1.alias = 'Hornets')
+union all
+select nt1.alias, 'Visitante', nmm.team1_quarter1_points , nmm.team1_quarter2_points , nmm.team1_quarter3_points , nmm.team1_quarter4_points , nmm.team1_total_points ,
+	   nmm.game_date
+from nba_matches nmm, nba_team nt1
+where nmm.team2_id = nt1.id
+	and (nt1.alias = 'Hornets')
+order by team1_total_points
+
+
+-- Enferntamientos previos entre dos equipos
+select nt1.alias, nmm.team1_quarter1_points , nmm.team1_quarter2_points , nmm.team1_quarter3_points , nmm.team1_quarter4_points , nmm.team1_total_points ,
+	   nt2.alias, nmm.team2_quarter1_points , nmm.team2_quarter2_points , nmm.team2_quarter3_points, nmm.team2_quarter4_points , nmm.team2_total_points ,
+	   nmm.game_date
+from nba_matches nmm, nba_team nt1, nba_team nt2
+where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
+	and ((nt1.alias = 'Hornets' and nt2.alias = 'Cavaliers') or (nt1.alias = 'Cavaliers' and nt2.alias = 'Hornets'))
+
+
+-- Partidos por debajo de cierto puntaje
+select (team1_total_points + team2_total_points) total_puntos,
+	   nt1.alias, nmm.team1_quarter1_points , nmm.team1_quarter2_points , nmm.team1_quarter3_points , nmm.team1_quarter4_points , nmm.team1_total_points ,
+	   nt2.alias, nmm.team2_quarter1_points , nmm.team2_quarter2_points , nmm.team2_quarter3_points, nmm.team2_quarter4_points , nmm.team2_total_points ,
+	   nmm.game_date
+from nba_matches nmm, nba_team nt1, nba_team nt2
+where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
+	and (team1_total_points + team2_total_points) < 196
