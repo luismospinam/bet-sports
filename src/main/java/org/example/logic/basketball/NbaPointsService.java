@@ -2,32 +2,38 @@ package org.example.logic.basketball;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.db.basketball.BasketballPointsDao;
-import org.example.model.EventBasketballPoints;
-import org.example.model.EventBasketballPointsLineTypeOdd;
+import org.example.db.basketball.NbaPointsDao;
+import org.example.model.NbaTeam;
+import org.example.model.EventNbaPoints;
+import org.example.model.EventNbaPointsLineTypeOdd;
 import org.example.util.HttpUtil;
+import org.example.util.SoundUtil;
 
+import javax.sound.sampled.LineUnavailableException;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class BasketballPointsService {
+public class NbaPointsService {
 
-    private final BasketballPointsDao basketballPointsDao;
+    private final NbaPointsDao nbaPointsDao;
     private static final String JSON_LIST_PATH = "[]";
     private final List<String> betPaths = List.of("betOffers", JSON_LIST_PATH, "criterion", "label");
     private static final String DESIRED_BET_NAME = "Total de puntos - Prórroga incluida";
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final double MINIMUM_POINTS_NOTIFICATION = 194d;
+    private static final double MAXIMUM_POINTS_NOTIFICATION = 250d;
 
 
-    public BasketballPointsService(BasketballPointsDao basketballPointsDao) {
-        this.basketballPointsDao = basketballPointsDao;
+    public NbaPointsService(NbaPointsDao nbaPointsDao) {
+        this.nbaPointsDao = nbaPointsDao;
     }
 
 
-    public void persistEventValues(EventBasketballPoints event) throws SQLException {
+    public void persistEventValues(EventNbaPoints event) throws SQLException, LineUnavailableException {
         for (JsonNode betEvent : event.pointEvents()) {
             JsonNode outcomes = betEvent.findValue("outcomes");
             for (JsonNode node : outcomes) {
@@ -35,29 +41,34 @@ public class BasketballPointsService {
                 double line = node.findValue("line").asDouble() / 1_000;
                 double odds = node.findValue("odds").asDouble() / 1_000;
 
-                Optional<EventBasketballPointsLineTypeOdd> existingEvent = basketballPointsDao.checkEventAlreadyExist(event, line, type);
+                Optional<EventNbaPointsLineTypeOdd> existingEvent = nbaPointsDao.checkEventAlreadyExist(event, line, type);
                 if (existingEvent.isPresent()) {
-                    EventBasketballPointsLineTypeOdd eventBasketballPointsLineTypeOdd = existingEvent.get();
-                    if (eventBasketballPointsLineTypeOdd.odd() != odds) {
-                        basketballPointsDao.updateExistingEvent(event, eventBasketballPointsLineTypeOdd, type, line, odds);
+                    EventNbaPointsLineTypeOdd eventNbaPointsLineTypeOdd = existingEvent.get();
+                    if (eventNbaPointsLineTypeOdd.odd() != odds) {
+                        nbaPointsDao.updateExistingEvent(event, eventNbaPointsLineTypeOdd, type, line, odds);
                     }
                 } else {
-                    basketballPointsDao.insertNewEvent(event, type, line, odds);
+                    nbaPointsDao.insertNewEvent(event, type, line, odds);
+                }
+
+                if ((line <= MINIMUM_POINTS_NOTIFICATION && "OT_OVER".equals(type)) || (line >= MAXIMUM_POINTS_NOTIFICATION && "OT_UNDER".equals(type))) {
+                    System.out.printf("Event %s with a line of %f %s has an odd of %f %s", event.matchMame(), line, type, odds, System.lineSeparator());
+                    SoundUtil.makeSound();
                 }
             }
 
         }
     }
 
-    public List<EventBasketballPoints> findMatchesPointsOdd(String url, List<String> matchesId) throws Exception {
-        List<EventBasketballPoints> returnList = new ArrayList<>();
+    public List<EventNbaPoints> findMatchesPointsOdd(String url, List<String> matchesId) throws Exception {
+        List<EventNbaPoints> returnList = new ArrayList<>();
 
         for (String matchId : matchesId) {
             String finalUrl = String.format(url, matchId);
             String jsonResponse = HttpUtil.sendRequestMatch(finalUrl);
             JsonNode jsonNode = objectMapper.readTree(jsonResponse);
             List<JsonNode> betEvents = findBetEvent(jsonNode, betPaths);
-            EventBasketballPoints event = fillEventData(jsonNode, betEvents);
+            EventNbaPoints event = fillEventData(jsonNode, betEvents);
             returnList.add(event);
 
             this.persistEventValues(event);
@@ -66,17 +77,26 @@ public class BasketballPointsService {
         return returnList;
     }
 
-    private EventBasketballPoints fillEventData(JsonNode jsonNode, List<JsonNode> betEvents) {
+    private EventNbaPoints fillEventData(JsonNode jsonNode, List<JsonNode> betEvents) {
         JsonNode events = jsonNode.findValue("events");
         String eventName = events.findValue("name").textValue();
         String[] teams = eventName.split(" - ");
-        return new EventBasketballPoints(
+        NbaTeam team1 = NbaTeamsService.teamMap.values().stream()
+                .filter(team -> teams[0].contains(team.getAlias()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No team found for " + teams[0]));
+        NbaTeam team2 = NbaTeamsService.teamMap.values().stream()
+                .filter(team -> teams[1].contains(team.getAlias()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No team found for " + teams[1]));
+
+        return new EventNbaPoints(
                 events.findValue("id").asText(),
                 eventName,
                 DESIRED_BET_NAME,
-                Instant.parse(events.findValue("start").asText()),
-                teams[0],
-                teams[1],
+                Instant.parse(events.findValue("start").asText()).atZone(ZoneId.systemDefault()),
+                team1,
+                team2,
                 betEvents
         );
     }

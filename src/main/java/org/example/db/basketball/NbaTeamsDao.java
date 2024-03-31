@@ -1,17 +1,18 @@
 package org.example.db.basketball;
 
 import org.example.db.DB;
-import org.example.model.BasketballTeam;
+import org.example.model.NbaTeam;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Optional;
 
-public class BasketballTeamsDao {
+public class NbaTeamsDao {
     private static final Connection dbConnection = DB.getConnection();
 
-    public void persistTeamValues(BasketballTeam team) throws SQLException {
+    public void persistTeamValues(NbaTeam team) throws SQLException {
         String query = """
                 INSERT INTO nba_team (id, name, alias, short_name, games_played, total_average, first_quarter_average, second_quarter_average, third_quarter_average, fourth_quarter_average)
                 VALUES ('%d', '%s', '%s', '%s', %d, %f, %f, %f, %f, %f);
@@ -29,7 +30,7 @@ public class BasketballTeamsDao {
         preparedStatement.execute();
     }
 
-    public boolean teamAlreadyExist(BasketballTeam team) throws SQLException {
+    public boolean teamAlreadyExist(NbaTeam team) throws SQLException {
         String query = "SELECT * FROM nba_team WHERE alias = '%s'";
         String finalQuery = String.format(query, team.getAlias());
 
@@ -39,7 +40,7 @@ public class BasketballTeamsDao {
         return resultSet.next();
     }
 
-    public void updateTeamValues(BasketballTeam team) throws SQLException {
+    public void updateTeamValues(NbaTeam team) throws SQLException {
         String query = """
                 UPDATE nba_team SET
                 games_played = %d, total_average = %f, first_quarter_average = %f, second_quarter_average = %f, third_quarter_average = %f, fourth_quarter_average = %f
@@ -51,5 +52,46 @@ public class BasketballTeamsDao {
                 team.getId());
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
+    }
+
+    public void updateTeamWinsLosses(NbaTeam team) throws SQLException {
+        String query = """
+                UPDATE nba_team SET
+                wins_home = %d, losses_home = %d, wins_away = %d, losses_away = %d
+                WHERE id = %d;
+                """;
+
+        String finalQuery = String.format(query, team.getWinsHome(), team.getLossesHome(), team.getWinsAway(), team.getLossesAway(), team.getId());
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
+        preparedStatement.execute();
+    }
+
+    public Optional<NbaTeam> findTeamById(NbaTeam team) throws SQLException {
+        String query = "SELECT * FROM nba_team WHERE id = '%d'";
+        String finalQuery = String.format(query, team.getId());
+
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        if (resultSet.next()) {
+            return Optional.of(new NbaTeam(
+                    resultSet.getInt("id"),
+                    resultSet.getString("name"),
+                    resultSet.getString("alias"),
+                    resultSet.getString("short_name"),
+                    resultSet.getInt("games_played"),
+                    resultSet.getDouble("total_average"),
+                    resultSet.getDouble("first_quarter_average"),
+                    resultSet.getDouble("second_quarter_average"),
+                    resultSet.getDouble("third_quarter_average"),
+                    resultSet.getDouble("fourth_quarter_average"),
+                    resultSet.getInt("wins_home"),
+                    resultSet.getInt("losses_home"),
+                    resultSet.getInt("wins_away"),
+                    resultSet.getInt("losses_away")
+            ));
+        }
+
+        return Optional.empty();
     }
 }

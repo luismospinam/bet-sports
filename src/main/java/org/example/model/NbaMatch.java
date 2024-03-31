@@ -1,9 +1,8 @@
 package org.example.model;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 
-public record BasketballMatch(
+public record NbaMatch(
         Integer id,
         Integer team1Id,
         Double team1Quarter1Points,

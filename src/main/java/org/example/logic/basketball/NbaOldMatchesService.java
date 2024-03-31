@@ -2,36 +2,32 @@ package org.example.logic.basketball;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.db.DB;
-import org.example.db.basketball.BasketballOldMatchesDao;
-import org.example.model.BasketballMatch;
+import org.example.db.basketball.NbaOldMatchesDao;
+import org.example.model.NbaMatch;
+import org.example.model.NbaTeam;
 import org.example.util.HttpUtil;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-public class BasketballOldMatchesService {
-    private final BasketballOldMatchesDao basketballOldMatchesDao;
+public class NbaOldMatchesService {
+    private final NbaOldMatchesDao nbaOldMatchesDao;
     private static final String MATCHES_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?region=ph&lang=en&contentorigin=espn&limit=100&calendartype=offdays&dates=%S";
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final int SECONDS_SLEEP_BETWEEN_REQUEST = 4;
     private static final LocalDate SEASON_START_DATE = LocalDate.of(2023, 10, 24);
 
 
-    public BasketballOldMatchesService(BasketballOldMatchesDao basketballOldMatchesDao) {
-        this.basketballOldMatchesDao = basketballOldMatchesDao;
+    public NbaOldMatchesService(NbaOldMatchesDao nbaOldMatchesDao) {
+        this.nbaOldMatchesDao = nbaOldMatchesDao;
     }
 
     public void populateOldMatches() throws Exception {
-        Optional<LocalDate> lastStoredMatchDate = basketballOldMatchesDao.getLastStoredMatchDate();
+        Optional<LocalDate> lastStoredMatchDate = nbaOldMatchesDao.getLastStoredMatchDate();
         if (lastStoredMatchDate.isEmpty()) {
             loadAllPreviousMatches(SEASON_START_DATE);
         } else {
@@ -45,7 +41,7 @@ public class BasketballOldMatchesService {
         System.out.println();
 
         while (currentLocalDate.isAfter(lowerLimitDate) || currentLocalDate.isEqual(lowerLimitDate)) {
-            TimeUnit.SECONDS.sleep(5); //to avoid getting blocked
+            TimeUnit.SECONDS.sleep(SECONDS_SLEEP_BETWEEN_REQUEST); //to avoid getting blocked
             System.out.println("Finding games on " + currentLocalDate);
             String currentDate = currentLocalDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String currentUrl = String.format(MATCHES_URL, currentDate);
@@ -55,17 +51,17 @@ public class BasketballOldMatchesService {
             JsonNode matches = jsonNode.findValue("events");
 
             for (JsonNode match : matches) {
-                Optional<BasketballMatch> basketballMatch = getBasketballMatch(match);
+                Optional<NbaMatch> basketballMatch = getBasketballMatch(match);
                 if (basketballMatch.isPresent()) {
-                    basketballOldMatchesDao.persistMatch(basketballMatch.get());
+                    nbaOldMatchesDao.persistMatch(basketballMatch.get());
                 }
             }
             currentLocalDate = currentLocalDate.minusDays(1);
         }
-        System.out.println("Finished loading NBA previous matches");
+        System.out.println("Finished loading NBA previous matches" + System.lineSeparator());
     }
 
-    private Optional<BasketballMatch> getBasketballMatch(JsonNode match) {
+    private Optional<NbaMatch> getBasketballMatch(JsonNode match) {
         try {
             String shortName = match.findValue("shortName").textValue();
             String[] teams = shortName.contains(" @ ") ? shortName.split(" @ ") : shortName.split(" VS ");
@@ -85,15 +81,17 @@ public class BasketballOldMatchesService {
             JsonNode lineScoresVisitorTeam = visitorTeamData.findValue("linescores");
 
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mmX");
-            BasketballMatch basketballMatch = new BasketballMatch(
+            NbaTeam localTeam = NbaTeamsService.teamMapShortName.get(localTeamName);
+            NbaTeam awayTeam = NbaTeamsService.teamMapShortName.get(visitorTeamName);
+            NbaMatch nbaMatch = new NbaMatch(
                     null,
-                    BasketballTeamsService.teamMapShortName.get(localTeamName).getId(),
+                    localTeam.getId(),
                     lineScoresLocalTeam.get(0).findPath("value").doubleValue(),
                     lineScoresLocalTeam.get(1).findPath("value").doubleValue(),
                     lineScoresLocalTeam.get(2).findPath("value").doubleValue(),
                     lineScoresLocalTeam.get(3).findPath("value").doubleValue(),
                     Double.valueOf(localTeamData.findValue("score").textValue()),
-                    BasketballTeamsService.teamMapShortName.get(visitorTeamName).getId(),
+                    awayTeam.getId(),
                     lineScoresVisitorTeam.get(0).findPath("value").doubleValue(),
                     lineScoresVisitorTeam.get(1).findPath("value").doubleValue(),
                     lineScoresVisitorTeam.get(2).findPath("value").doubleValue(),
@@ -101,7 +99,10 @@ public class BasketballOldMatchesService {
                     Double.valueOf(visitorTeamData.findValue("score").textValue()),
                     Instant.from(formatter.parse(competitions.findValue("date").textValue())).minus(5, ChronoUnit.HOURS)
             );
-            return Optional.of(basketballMatch);
+
+            NbaTeamsService.updateTeamWinsLosses(nbaMatch);
+
+            return Optional.of(nbaMatch);
         } catch (Exception e) {
             System.out.println("Error in match " + match);
         }

@@ -1,6 +1,6 @@
 package org.example.model;
 
-public class BasketballTeam {
+public class NbaTeam {
     private int id;
     private String name;
     private String alias;
@@ -11,14 +11,69 @@ public class BasketballTeam {
     private Double secondQuarterAverage;
     private Double thirdQuarterAverage;
     private Double fourthQuarterAverage;
+    private Integer winsHome;
+    private Integer lossesHome;
+    private Integer winsAway;
+    private Integer lossesAway;
 
-    public BasketballTeam(int id, String name, String alias, String shortName, int gamesPlayed, Double totalAverage) {
+    public NbaTeam(int id, String name, String alias, String shortName, int gamesPlayed, Double totalAverage) {
         this.id = id;
         this.name = name;
         this.alias = alias;
         this.shortName = shortName;
         this.gamesPlayed = gamesPlayed;
         this.totalAverage = totalAverage;
+    }
+
+    public NbaTeam(int id, String name, String alias, String shortName, int gamesPlayed,
+                   Double totalAverage, Double firstQuarterAverage, Double secondQuarterAverage, Double thirdQuarterAverage, Double fourthQuarterAverage,
+                   Integer winsHome, Integer lossesHome, Integer winsAway, Integer lossesAway) {
+        this.id = id;
+        this.name = name;
+        this.alias = alias;
+        this.shortName = shortName;
+        this.gamesPlayed = gamesPlayed;
+        this.totalAverage = totalAverage;
+        this.firstQuarterAverage = firstQuarterAverage;
+        this.secondQuarterAverage = secondQuarterAverage;
+        this.thirdQuarterAverage = thirdQuarterAverage;
+        this.fourthQuarterAverage = fourthQuarterAverage;
+        this.winsHome = winsHome;
+        this.lossesHome = lossesHome;
+        this.winsAway = winsAway;
+        this.lossesAway = lossesAway;
+    }
+
+    public Integer getWinsHome() {
+        return winsHome;
+    }
+
+    public void setWinsHome(Integer winsHome) {
+        this.winsHome = winsHome;
+    }
+
+    public Integer getLossesHome() {
+        return lossesHome;
+    }
+
+    public void setLossesHome(Integer lossesHome) {
+        this.lossesHome = lossesHome;
+    }
+
+    public Integer getWinsAway() {
+        return winsAway;
+    }
+
+    public void setWinsAway(Integer winsAway) {
+        this.winsAway = winsAway;
+    }
+
+    public Integer getLossesAway() {
+        return lossesAway;
+    }
+
+    public void setLossesAway(Integer lossesAway) {
+        this.lossesAway = lossesAway;
     }
 
     public int getId() {

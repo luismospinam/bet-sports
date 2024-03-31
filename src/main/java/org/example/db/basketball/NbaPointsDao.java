@@ -2,25 +2,23 @@ package org.example.db.basketball;
 
 import org.example.constant.EventOddChange;
 import org.example.db.DB;
-import org.example.model.EventBasketballPoints;
-import org.example.model.EventBasketballPointsLineTypeOdd;
+import org.example.model.EventNbaPoints;
+import org.example.model.EventNbaPointsLineTypeOdd;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.example.constant.Message.EXISTING_EVENT_CHANGE_ODD;
 
-public class BasketballPointsDao {
+public class NbaPointsDao {
     private static final Connection dbConnection = DB.getConnection();
 
 
-    public void updateExistingEvent(EventBasketballPoints event,
-                                    EventBasketballPointsLineTypeOdd existingEvent, String type, Double line, Double newOdd) throws SQLException {
+    public void updateExistingEvent(EventNbaPoints event,
+                                    EventNbaPointsLineTypeOdd existingEvent, String type, Double line, Double newOdd) throws SQLException {
         String query = """
                 UPDATE bets SET odd = %f, date = NOW()
                 WHERE id = %d
@@ -31,33 +29,36 @@ public class BasketballPointsDao {
 
 
         query = """
-                INSERT INTO bet_change (bets_id, old_odd, new_odd, action, date, message)
-                VALUES (%d, %f, %f, '%s', NOW(), '%s');
+                INSERT INTO bet_change (bets_id, old_odd, new_odd, difference, action, date, message)
+                VALUES (%d, %f, %f, %f, '%s', NOW(), '%s');
                 """;
         Double oldOdd = existingEvent.odd();
+        Double oddDifference = newOdd - oldOdd;
         String message = String.format(EXISTING_EVENT_CHANGE_ODD.getMessage(), existingEvent.id(), event.matchMame(), oldOdd, newOdd, line, type);
         EventOddChange eventOddChange = newOdd > oldOdd ? EventOddChange.INCREASE : EventOddChange.DECREASE;
-        finalQuery = String.format(query, existingEvent.id(), oldOdd, newOdd, eventOddChange, message);
+
+        finalQuery = String.format(query, existingEvent.id(), oldOdd, newOdd, oddDifference, eventOddChange, message);
         preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }
 
-    public void insertNewEvent(EventBasketballPoints event, String type, double line, double odds) throws SQLException {
+    public void insertNewEvent(EventNbaPoints event, String type, double line, double odds) throws SQLException {
         String query = """
-                INSERT INTO bets (match_name, bet_name, game_date, team1, team2, bet_type, date, line, odd, betplay_id)
+                INSERT INTO bets (match_name, bet_name, game_date, team1_id, team2_id, bet_type, date, line, odd, betplay_id)
                 VALUES ('%s', '%s', '%s', '%s', '%s', '%s', NOW(), %f, %f, %s);
                 """;
-        String finalQuery = String.format(query, event.matchMame(), event.betName(), event.gameDate(), event.team1(), event.team2(), type, line, odds, event.id());
+        String finalQuery = String.format(query, event.matchMame(), event.betName(), event.gameDate().toLocalDateTime(),
+                event.team1().getId(), event.team2().getId(), type, line, odds, event.id());
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }
 
-    public Optional<EventBasketballPointsLineTypeOdd> checkEventAlreadyExist(EventBasketballPoints event, double line, String type) throws SQLException {
+    public Optional<EventNbaPointsLineTypeOdd> checkEventAlreadyExist(EventNbaPoints event, double line, String type) throws SQLException {
         String query = """
                 SELECT * FROM bets WHERE match_name = '%s' and bet_name = '%s' and game_date = '%s' and bet_type = '%s' and line = %f;
                 """;
-        query = String.format(query, event.matchMame(), event.betName(), LocalDate.ofInstant(event.gameDate(), ZoneOffset.UTC), type, line);
+        query = String.format(query, event.matchMame(), event.betName(), event.gameDate().toLocalDateTime(), type, line);
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
         ResultSet resultSet = preparedStatement.executeQuery();
@@ -66,7 +67,7 @@ public class BasketballPointsDao {
             return Optional.empty();
         }
 
-        return Optional.of(new EventBasketballPointsLineTypeOdd(
+        return Optional.of(new EventNbaPointsLineTypeOdd(
                 resultSet.getInt("id"),
                 resultSet.getString("bet_type"),
                 resultSet.getDouble("line"),

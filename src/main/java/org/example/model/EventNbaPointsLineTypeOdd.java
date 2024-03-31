@@ -1,6 +1,6 @@
 package org.example.model;
 
-public record EventBasketballPointsLineTypeOdd(
+public record EventNbaPointsLineTypeOdd(
         Integer id,
         String betType,
         Double line,
