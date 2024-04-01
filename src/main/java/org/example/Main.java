@@ -1,6 +1,7 @@
 package org.example;
 
 import org.example.constant.AIMessages;
+import org.example.constant.HomeAway;
 import org.example.db.basketball.NbaOldMatchesDao;
 import org.example.db.basketball.NbaPointsDao;
 import org.example.db.basketball.NbaStatisticsDao;
@@ -44,15 +45,21 @@ public class Main {
     }
 
     private static void createAIMessageQuestion(EventNbaPoints inputMatch) {
+        int findLastMatchesCount = 5;
+
         NbaStatisticsService nbaStatisticsService = new NbaStatisticsService(new NbaStatisticsDao());
         String team1 = inputMatch.team1().getAlias();
         List<NbaStatisticTeamIndividualMatches> matchStatisticsTeam1 = nbaStatisticsService.findMatchesByTeam(team1);
         NbaStatisticTeamHomeAway nbaStatisticTeam1 = nbaStatisticsService.computeStatistics(matchStatisticsTeam1);
+        List<NbaStatisticTeamsMatch> team1HomeMatches = nbaStatisticsService.findLastMatches(team1, findLastMatchesCount, HomeAway.HOME);
+        List<NbaStatisticTeamsMatch> team1AwayMatches = nbaStatisticsService.findLastMatches(team1, findLastMatchesCount, HomeAway.AWAY);
 
 
         String team2 = inputMatch.team2().getAlias();
         List<NbaStatisticTeamIndividualMatches> matchStatisticsTeam2 = nbaStatisticsService.findMatchesByTeam(team2);
         NbaStatisticTeamHomeAway nbaStatisticTeam2 = nbaStatisticsService.computeStatistics(matchStatisticsTeam2);
+        List<NbaStatisticTeamsMatch> team2HomeMatches = nbaStatisticsService.findLastMatches(team2, findLastMatchesCount, HomeAway.HOME);
+        List<NbaStatisticTeamsMatch> team2AwayMatches = nbaStatisticsService.findLastMatches(team2, findLastMatchesCount, HomeAway.AWAY);
 
         List<NbaStatisticTeamsMatch> matchesBetweenTwoTeams = nbaStatisticsService.findMatchesBetweenTwoTeams(team1, team2);
         String recentMatchesResultString = matchesBetweenTwoTeams.stream()
@@ -74,6 +81,23 @@ public class Main {
                 .replaceAll(":pointsAverageAwayTeam1", String.valueOf(nbaStatisticTeam1.awayAverage()))
                 .replaceAll(":pointsAverageHomeTeam2", String.valueOf(nbaStatisticTeam2.homeAverage()))
                 .replaceAll(":pointsAverageAwayTeam2", String.valueOf(nbaStatisticTeam2.awayAverage()))
+                .replaceAll(":numberMatches", String.valueOf(findLastMatchesCount))
+                .replaceAll(":pointScoredLastMatchesHomeTeam1",team1HomeMatches.stream()
+                        .map(NbaStatisticTeamsMatch::homeTeamTotalPoints)
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",")))
+                .replaceAll(":pointScoredLastMatchesAwayTeam1",team1AwayMatches.stream()
+                        .map(NbaStatisticTeamsMatch::awayTeamTotalPoints)
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",")))
+                .replaceAll(":pointScoredLastMatchesHomeTeam2",team2HomeMatches.stream()
+                        .map(NbaStatisticTeamsMatch::homeTeamTotalPoints)
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",")))
+                .replaceAll(":pointScoredLastMatchesAwayTeam2",team2AwayMatches.stream()
+                        .map(NbaStatisticTeamsMatch::awayTeamTotalPoints)
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",")))
                 .replaceAll(":minPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMinPoints()))
                 .replaceAll(":minPointsAwayTeam1", String.valueOf(nbaStatisticTeam1.awayMinPoints()))
                 .replaceAll(":maxPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMaxPoints()))

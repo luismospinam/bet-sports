@@ -12,6 +12,7 @@ import org.example.util.SoundUtil;
 import javax.sound.sampled.LineUnavailableException;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +25,7 @@ public class NbaPointsService {
     private final List<String> betPaths = List.of("betOffers", JSON_LIST_PATH, "criterion", "label");
     private static final String DESIRED_BET_NAME = "Total de puntos - Prórroga incluida";
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static final double MINIMUM_POINTS_NOTIFICATION = 194d;
+    private static final double MINIMUM_POINTS_NOTIFICATION = 200d;
     private static final double MAXIMUM_POINTS_NOTIFICATION = 250d;
 
 
@@ -34,6 +35,7 @@ public class NbaPointsService {
 
 
     public void persistEventValues(EventNbaPoints event) throws SQLException, LineUnavailableException {
+        LocalDateTime date = LocalDateTime.now();
         for (JsonNode betEvent : event.pointEvents()) {
             JsonNode outcomes = betEvent.findValue("outcomes");
             for (JsonNode node : outcomes) {
@@ -44,11 +46,12 @@ public class NbaPointsService {
                 Optional<EventNbaPointsLineTypeOdd> existingEvent = nbaPointsDao.checkEventAlreadyExist(event, line, type);
                 if (existingEvent.isPresent()) {
                     EventNbaPointsLineTypeOdd eventNbaPointsLineTypeOdd = existingEvent.get();
+                    nbaPointsDao.updateExistingEventDate(eventNbaPointsLineTypeOdd, odds, date);
                     if (eventNbaPointsLineTypeOdd.odd() != odds) {
-                        nbaPointsDao.updateExistingEvent(event, eventNbaPointsLineTypeOdd, type, line, odds);
+                        nbaPointsDao.insertEventChange(event, eventNbaPointsLineTypeOdd, type, line, odds, date);;
                     }
                 } else {
-                    nbaPointsDao.insertNewEvent(event, type, line, odds);
+                    nbaPointsDao.insertNewEvent(event, type, line, odds, date);
                 }
 
                 if ((line <= MINIMUM_POINTS_NOTIFICATION && "OT_OVER".equals(type)) || (line >= MAXIMUM_POINTS_NOTIFICATION && "OT_UNDER".equals(type))) {
@@ -58,6 +61,8 @@ public class NbaPointsService {
             }
 
         }
+
+        nbaPointsDao.deleteEventsNotActiveAnymore(event.matchMame(), date);
     }
 
     public List<EventNbaPoints> findMatchesPointsOdd(String url, List<String> matchesId) throws Exception {

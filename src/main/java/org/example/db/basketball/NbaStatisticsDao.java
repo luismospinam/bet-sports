@@ -91,5 +91,51 @@ public class NbaStatisticsDao {
 
         return returnList;
     }
+
+    public List<NbaStatisticTeamsMatch> findLastMatches(String alias, int amountMatches, HomeAway homeAway) throws SQLException {
+        String query = """
+              select nt1.alias "homeAlias", nmm.team1_quarter1_points "homeQ1", nmm.team1_quarter2_points "homeQ2", nmm.team1_quarter3_points "homeQ3", nmm.team1_quarter4_points "homeQ4", nmm.team1_total_points "homeTotal",
+                 nt2.alias "awayAlias", nmm.team2_quarter1_points "awayQ1", nmm.team2_quarter2_points "awayQ2", nmm.team2_quarter3_points "awayQ3", nmm.team2_quarter4_points "awayQ4", nmm.team2_total_points "awayTotal",
+                 nmm.game_date "game_date"
+              from nba_matches nmm, nba_team nt1, nba_team nt2
+              where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
+                """;
+        if (homeAway.equals(HomeAway.HOME)) {
+            query = query.concat(" and (nt1.alias = '%s')");
+        } else {
+            query = query.concat(" and (nt2.alias = '%s')");
+        }
+
+        query = query.concat(" ORDER BY nmm.game_date desc LIMIT " + amountMatches);
+        query = String.format(query, alias);
+
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
+
+        ResultSet resultSet = preparedStatement.executeQuery();
+        if (resultSet == null) {
+            return List.of();
+        }
+
+        List<NbaStatisticTeamsMatch> returnList = new ArrayList<>();
+        while (resultSet.next()) {
+            returnList.add(new NbaStatisticTeamsMatch(
+                    resultSet.getString("homeAlias"),
+                    resultSet.getInt("homeQ1"),
+                    resultSet.getInt("homeQ2"),
+                    resultSet.getInt("homeQ3"),
+                    resultSet.getInt("homeQ4"),
+                    resultSet.getInt("homeTotal"),
+                    resultSet.getString("awayAlias"),
+                    resultSet.getInt("awayQ1"),
+                    resultSet.getInt("awayQ2"),
+                    resultSet.getInt("awayQ3"),
+                    resultSet.getInt("awayQ4"),
+                    resultSet.getInt("awayTotal"),
+                    resultSet.getTimestamp("game_date").toLocalDateTime()
+            ));
+        }
+
+        return returnList;
+    }
 }
 

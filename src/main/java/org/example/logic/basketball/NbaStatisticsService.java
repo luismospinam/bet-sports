@@ -24,8 +24,17 @@ public class NbaStatisticsService {
         try {
             return nbaStatisticsDao.findMatchesByTeam(alias);
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println(e.getMessage() + " " + e.getErrorCode());
             throw new RuntimeException("Error while finding match statistics for team " + alias);
+        }
+    }
+
+    public List<NbaStatisticTeamsMatch> findLastMatches(String alias, int amountMatches, HomeAway homeAway) {
+        try {
+            return nbaStatisticsDao.findLastMatches(alias, amountMatches, homeAway);
+        } catch (SQLException e) {
+            System.err.println(e.getMessage() + " " + e.getErrorCode());
+            throw new RuntimeException(e);
         }
     }
 

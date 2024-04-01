@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.example.constant.Message.EXISTING_EVENT_CHANGE_ODD;
@@ -17,38 +18,39 @@ public class NbaPointsDao {
     private static final Connection dbConnection = DB.getConnection();
 
 
-    public void updateExistingEvent(EventNbaPoints event,
-                                    EventNbaPointsLineTypeOdd existingEvent, String type, Double line, Double newOdd) throws SQLException {
+    public void updateExistingEventDate(EventNbaPointsLineTypeOdd existingEvent,  Double newOdd, LocalDateTime date) throws SQLException {
         String query = """
-                UPDATE bets SET odd = %f, date = NOW()
+                UPDATE bets SET odd = %f, date = '%s', deleted = false
                 WHERE id = %d
                 """;
-        String finalQuery = String.format(query, newOdd, existingEvent.id());
+        String finalQuery = String.format(query, newOdd, date, existingEvent.id());
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
+    }
 
-
-        query = """
+    public void insertEventChange(EventNbaPoints event, EventNbaPointsLineTypeOdd existingEvent,
+                                  String type, Double line, Double newOdd, LocalDateTime date) throws SQLException {
+        String query = """
                 INSERT INTO bet_change (bets_id, old_odd, new_odd, difference, action, date, message)
-                VALUES (%d, %f, %f, %f, '%s', NOW(), '%s');
+                VALUES (%d, %f, %f, %f, '%s', '%s', '%s');
                 """;
         Double oldOdd = existingEvent.odd();
         Double oddDifference = newOdd - oldOdd;
         String message = String.format(EXISTING_EVENT_CHANGE_ODD.getMessage(), existingEvent.id(), event.matchMame(), oldOdd, newOdd, line, type);
         EventOddChange eventOddChange = newOdd > oldOdd ? EventOddChange.INCREASE : EventOddChange.DECREASE;
 
-        finalQuery = String.format(query, existingEvent.id(), oldOdd, newOdd, oddDifference, eventOddChange, message);
-        preparedStatement = dbConnection.prepareStatement(finalQuery);
+        String finalQuery = String.format(query, existingEvent.id(), oldOdd, newOdd, oddDifference, eventOddChange, date, message);
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }
 
-    public void insertNewEvent(EventNbaPoints event, String type, double line, double odds) throws SQLException {
+    public void insertNewEvent(EventNbaPoints event, String type, double line, double odds, LocalDateTime date) throws SQLException {
         String query = """
-                INSERT INTO bets (match_name, bet_name, game_date, team1_id, team2_id, bet_type, date, line, odd, betplay_id)
-                VALUES ('%s', '%s', '%s', '%s', '%s', '%s', NOW(), %f, %f, %s);
+                INSERT INTO bets (match_name, bet_name, game_date, team1_id, team2_id, bet_type, date, line, odd, betplay_id, deleted)
+                VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %f, %f, %s, false);
                 """;
         String finalQuery = String.format(query, event.matchMame(), event.betName(), event.gameDate().toLocalDateTime(),
-                event.team1().getId(), event.team2().getId(), type, line, odds, event.id());
+                event.team1().getId(), event.team2().getId(), type, date, line, odds, event.id());
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
@@ -73,5 +75,15 @@ public class NbaPointsDao {
                 resultSet.getDouble("line"),
                 resultSet.getDouble("odd")
         ));
+    }
+
+    public void deleteEventsNotActiveAnymore(String matchName, LocalDateTime date) throws SQLException {
+        String query = """
+                UPDATE bets SET deleted = true
+                WHERE date <> '%s' and match_name = '%s'
+                """;
+        String finalQuery = String.format(query, date, matchName);
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
+        preparedStatement.execute();
     }
 }

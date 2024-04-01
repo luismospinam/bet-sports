@@ -18,7 +18,7 @@ public class NbaOldMatchesService {
     private final NbaOldMatchesDao nbaOldMatchesDao;
     private static final String MATCHES_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?region=ph&lang=en&contentorigin=espn&limit=100&calendartype=offdays&dates=%S";
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static final int SECONDS_SLEEP_BETWEEN_REQUEST = 4;
+    private static final int SECONDS_SLEEP_BETWEEN_REQUEST = 5;
     private static final LocalDate SEASON_START_DATE = LocalDate.of(2023, 10, 24);
 
 
@@ -37,8 +37,7 @@ public class NbaOldMatchesService {
 
     private void loadAllPreviousMatches(LocalDate lowerLimitDate) throws Exception {
         LocalDate currentLocalDate = LocalDate.now().minusDays(1);
-        System.out.printf("Starting to load NBA previous matches from %s to %s", lowerLimitDate, currentLocalDate);
-        System.out.println();
+        System.out.printf("Starting to load NBA previous matches from %s to %s %s", lowerLimitDate, currentLocalDate, System.lineSeparator());
 
         while (currentLocalDate.isAfter(lowerLimitDate) || currentLocalDate.isEqual(lowerLimitDate)) {
             TimeUnit.SECONDS.sleep(SECONDS_SLEEP_BETWEEN_REQUEST); //to avoid getting blocked
