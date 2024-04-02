@@ -1,24 +1,16 @@
 package org.example.db;
 
+import org.example.util.PropertiesLoaderUtil;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 
 public class DatabaseConfig {
-    private static final Properties properties = new Properties();
+    private static final Properties properties;
 
     static {
-        try (InputStream input = DatabaseConfig.class.getClassLoader().getResourceAsStream("db.properties")) {
-            if (input == null) {
-                System.out.println("Sorry, unable to find db.properties");
-                System.exit(1);
-            }
-
-            // Load the properties file
-            properties.load(input);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        properties = PropertiesLoaderUtil.loadProperties("db.properties");
     }
 
     public static String getDbUrl() {

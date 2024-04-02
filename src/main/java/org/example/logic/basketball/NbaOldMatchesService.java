@@ -9,6 +9,7 @@ import org.example.util.HttpUtil;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -36,7 +37,10 @@ public class NbaOldMatchesService {
     }
 
     private void loadAllPreviousMatches(LocalDate lowerLimitDate) throws Exception {
-        LocalDate currentLocalDate = LocalDate.now().minusDays(1);
+        LocalDate currentLocalDate = LocalDate.now();
+        if (LocalTime.now().isBefore(LocalTime.of(23, 0))) {
+            currentLocalDate = currentLocalDate.minusDays(1);
+        }
         System.out.printf("Starting to load NBA previous matches from %s to %s %s", lowerLimitDate, currentLocalDate, System.lineSeparator());
 
         while (currentLocalDate.isAfter(lowerLimitDate) || currentLocalDate.isEqual(lowerLimitDate)) {

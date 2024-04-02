@@ -40,3 +40,6 @@ build/
 
 ### Docker DB ###
 db/*
+
+### Credentials ###
+src/main/resources/credentials.properties

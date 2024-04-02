@@ -12,6 +12,7 @@ public enum AIMessages {
         and the minimum points the :teamAlias2 have scored in a game is :minPointsHomeTeam2 at home and :minPointsAwayTeam2 points away and the maximum is :maxPointsHomeTeam2 at home and :maxPointsAwayTeam2 points away
         The :sizeMatches most recent matches results between these 2 teams were: :recentMatchesResults
         what do you expect the next match total points between these 2 teams to be if the :teamAlias1 are in home and :teamAlias2 are away.
+        Start the answer with 'Expected points: XXX' where XXX is the number of expected points and then give the explanation.
         """);
 
     private final String message;

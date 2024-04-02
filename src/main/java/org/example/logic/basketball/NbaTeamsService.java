@@ -3,7 +3,8 @@ package org.example.logic.basketball;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.constant.HomeAway;
-import org.example.constant.NbaTeamShortNames;
+import org.example.constant.NbaTeamConference;
+import org.example.constant.NbaTeamConstant;
 import org.example.db.basketball.NbaTeamsDao;
 import org.example.model.NbaMatch;
 import org.example.model.NbaTeam;
@@ -13,6 +14,8 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.example.constant.NbaTeamConstant.conferenceTeamMap;
 
 public class NbaTeamsService {
 
@@ -77,7 +80,7 @@ public class NbaTeamsService {
         JsonNode teams = jsonNode.findValue("teams");
         for (JsonNode node : teams) {
             String alias = node.findPath("nickname").asText();
-            String shortName = NbaTeamShortNames.shortNameMap.get(alias);
+            String shortName = NbaTeamConstant.shortNameMap.get(alias);
             NbaTeam team = new NbaTeam(
                     node.findPath("team_id").asInt(),
                     node.findPath("location").asText(),
@@ -110,6 +113,8 @@ public class NbaTeamsService {
                     nbaTeamsDao.updateTeamValues(team);
                     System.out.println("updated team statistics " + team.getName());
                 } else {
+                    NbaTeamConference conference = conferenceTeamMap.get(NbaTeamConference.WEST).contains(team.getAlias()) ? NbaTeamConference.WEST : NbaTeamConference.EAST;
+                    team.setConference(conference);
                     nbaTeamsDao.persistTeamValues(team);
                     System.out.println("inserted new team statistics " + team.getName());
                 }

@@ -21,7 +21,8 @@ CREATE TABLE nba_team (
     wins_home INTEGER,
     losses_home INTEGER,
     wins_away INTEGER,
-    losses_away INTEGER
+    losses_away INTEGER,
+    conference TEXT
 );
 
 
@@ -36,7 +37,8 @@ CREATE TABLE bets (
     line NUMERIC,
     odd numeric,
     date timestamp,
-    betplay_id TEXT
+    betplay_id text,
+    deleted boolean default false
 );
 
 
@@ -68,6 +70,18 @@ CREATE TABLE nba_matches (
     team2_total_points numeric,
     game_date timestamp
 );
+
+
+CREATE TABLE ai_nba_response (
+    id SERIAL PRIMARY KEY,
+    match_name TEXT,
+    question TEXT
+    response TEXT,
+    ai_model TEXT,
+    value text,
+    response_date timestamp
+);
+
 
 
 -----------------------------------------------------------------------------------------------
@@ -167,3 +181,23 @@ select (team1_total_points + team2_total_points) total_puntos,
 from nba_matches nmm, nba_team nt1, nba_team nt2
 where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
 	and (team1_total_points + team2_total_points) < 196
+
+
+-- AI by date
+select *
+from ai_nba_response
+where match_name like '%2024-04-02%'
+order by match_name desc, response_date
+
+
+-- AI vs actual match
+select nt1.alias, nmm.team1_total_points ,
+	   nt2.alias, nmm.team2_total_points ,
+	   nmm.game_date,
+	   (nmm.team1_total_points + nmm.team2_total_points) real_value,
+	   ai.value ai_value,
+	   ((nmm.team1_total_points + nmm.team2_total_points) - ai.value::INTEGER) difference,
+	   ai.match_name , ai.question , ai.response, ai.ai_model
+from nba_matches nmm, nba_team nt1, nba_team nt2, ai_nba_response ai
+where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
+	and ai.match_name like '%' || nt1.alias || '%' and ai.match_name like '%' || nt2.alias || '%' and ai.match_name like '%' || date(nmm.game_date) || '%'

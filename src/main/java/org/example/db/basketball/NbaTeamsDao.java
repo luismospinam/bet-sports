@@ -1,5 +1,6 @@
 package org.example.db.basketball;
 
+import org.example.constant.NbaTeamConference;
 import org.example.db.DB;
 import org.example.model.NbaTeam;
 
@@ -14,12 +15,13 @@ public class NbaTeamsDao {
 
     public void persistTeamValues(NbaTeam team) throws SQLException {
         String query = """
-                INSERT INTO nba_team (id, name, alias, short_name, games_played, total_average, first_quarter_average, second_quarter_average, third_quarter_average, fourth_quarter_average)
-                VALUES ('%d', '%s', '%s', '%s', %d, %f, %f, %f, %f, %f);
+                INSERT INTO nba_team (id, name, alias, short_name, games_played, total_average,
+                  first_quarter_average, second_quarter_average, third_quarter_average, fourth_quarter_average, conference)
+                VALUES ('%d', '%s', '%s', '%s', %d, %f, %f, %f, %f, %f, '%s');
                 """;
 
         String finalQuery = String.format(query, team.getId(), team.getName(), team.getAlias(), team.getShortName(), team.getGamesPlayed(), team.getTotalAverage(),
-                team.getFirstQuarterAverage(), team.getSecondQuarterAverage(), team.getThirdQuarterAverage(), team.getFourthQuarterAverage());
+                team.getFirstQuarterAverage(), team.getSecondQuarterAverage(), team.getThirdQuarterAverage(), team.getFourthQuarterAverage(), team.getConference());
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }
@@ -88,7 +90,8 @@ public class NbaTeamsDao {
                     resultSet.getInt("wins_home"),
                     resultSet.getInt("losses_home"),
                     resultSet.getInt("wins_away"),
-                    resultSet.getInt("losses_away")
+                    resultSet.getInt("losses_away"),
+                    NbaTeamConference.valueOf(resultSet.getString("conference"))
             ));
         }
 
