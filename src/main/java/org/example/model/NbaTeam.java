@@ -1,5 +1,7 @@
 package org.example.model;
 
+import org.example.constant.NbaTeamConference;
+
 public class NbaTeam {
     private int id;
     private String name;
@@ -15,6 +17,8 @@ public class NbaTeam {
     private Integer lossesHome;
     private Integer winsAway;
     private Integer lossesAway;
+    private NbaTeamConference conference;
+
 
     public NbaTeam(int id, String name, String alias, String shortName, int gamesPlayed, Double totalAverage) {
         this.id = id;
@@ -27,7 +31,7 @@ public class NbaTeam {
 
     public NbaTeam(int id, String name, String alias, String shortName, int gamesPlayed,
                    Double totalAverage, Double firstQuarterAverage, Double secondQuarterAverage, Double thirdQuarterAverage, Double fourthQuarterAverage,
-                   Integer winsHome, Integer lossesHome, Integer winsAway, Integer lossesAway) {
+                   Integer winsHome, Integer lossesHome, Integer winsAway, Integer lossesAway, NbaTeamConference conference) {
         this.id = id;
         this.name = name;
         this.alias = alias;
@@ -42,6 +46,7 @@ public class NbaTeam {
         this.lossesHome = lossesHome;
         this.winsAway = winsAway;
         this.lossesAway = lossesAway;
+        this.conference = conference;
     }
 
     public Integer getWinsHome() {
@@ -154,5 +159,13 @@ public class NbaTeam {
 
     public void setShortName(String shortName) {
         this.shortName = shortName;
+    }
+
+    public NbaTeamConference getConference() {
+        return conference;
+    }
+
+    public void setConference(NbaTeamConference conference) {
+        this.conference = conference;
     }
 }
