@@ -2,11 +2,12 @@ package org.example.logic.ai;
 
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
-import org.example.constant.AIMessages;
-import org.example.constant.HomeAway;
-import org.example.constant.OpenAIModels;
+import dev.langchain4j.model.openai.OpenAiChatModelName;
+import dev.langchain4j.model.vertexai.VertexAiGeminiChatModel;
+import org.example.constant.*;
 import org.example.db.ai.AIDao;
 import org.example.logic.basketball.NbaStatisticsService;
+import org.example.logic.basketball.NbaTeamsService;
 import org.example.model.*;
 import org.example.util.PropertiesLoaderUtil;
 import org.jetbrains.annotations.NotNull;
@@ -14,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,11 +24,14 @@ import java.util.stream.Collectors;
 public class AIService {
     private static final Properties properties;
     private static final OpenAIModels DEFAULT_MODEL_NAME = OpenAIModels.GPT_3_5_TURBO;
-    private static final Integer MAX_AI_RUNS = 20;
-    private static final Integer COUNT_LAST_MATCHES = 5;
+    private static final Integer MAX_AI_RUNS = 4;
+    private static final Integer COUNT_LAST_MATCHES = 7;
     private static final Integer MAX_TOKENS_COUNT = 400;
 
     private static String OPEN_API_KEY;
+    private static String GCP_PROJECT_ID;
+    private static final String GCP_REGION = "us-central1";
+    private final ChatLanguageModel openAI4Turbo, openAI3Turbo, googleGemini;
 
     private final AIDao aiDao;
     private final NbaStatisticsService nbaStatisticsService;
@@ -36,32 +41,53 @@ public class AIService {
         properties = PropertiesLoaderUtil.loadProperties("credentials.properties");
 
         String openApiKey = properties.getProperty("OPEN_AI_KEY");
-        if (openApiKey == null || openApiKey.isEmpty()) {
-            throw new RuntimeException("OPEN_AI_KEY can not be empty in credentials.properties");
+        String gcpProjectId = properties.getProperty("GCP_PROJECT_ID");
+        if (openApiKey == null || openApiKey.isEmpty() || gcpProjectId == null || gcpProjectId.isEmpty()) {
+            throw new RuntimeException("OPEN_AI_KEY and GCP_PROJECT_ID can not be empty in credentials.properties");
         }
 
         AIService.OPEN_API_KEY = openApiKey;
+        AIService.GCP_PROJECT_ID = gcpProjectId;
     }
 
 
     public AIService(AIDao aiDao, NbaStatisticsService nbaStatisticsService) {
         this.aiDao = aiDao;
         this.nbaStatisticsService = nbaStatisticsService;
-    }
 
-    private String sendQuestion(String question, OpenAIModels modelName) {
-        String modelNameString = modelName == null ? DEFAULT_MODEL_NAME.getName() : modelName.getName();
-
-        ChatLanguageModel model = OpenAiChatModel.builder()
+        this.openAI4Turbo = OpenAiChatModel.builder()
                 .apiKey(OPEN_API_KEY)
                 .maxTokens(AIService.MAX_TOKENS_COUNT)
-                .modelName(modelNameString)
+                .modelName(OpenAiChatModelName.GPT_4_TURBO_PREVIEW)
                 .logRequests(true)
                 .logResponses(true)
                 .build();
 
+        this.openAI3Turbo = OpenAiChatModel.builder()
+                .apiKey(OPEN_API_KEY)
+                .maxTokens(AIService.MAX_TOKENS_COUNT)
+                .modelName(OpenAiChatModelName.GPT_3_5_TURBO)
+                .logRequests(true)
+                .logResponses(true)
+                .build();
 
-        return model.generate(question);
+        this.googleGemini =  VertexAiGeminiChatModel.builder()
+                .project(GCP_PROJECT_ID)
+                .location(GCP_REGION)
+                .modelName(GoogleAIModels.GEMINI_PRO.getName())
+                .build();
+    }
+
+    private String sendQuestionOpenAI(String question, OpenAIModels model) {
+        if (model == OpenAIModels.GPT_3_5_TURBO) {
+            return openAI3Turbo.generate(question);
+        } else {
+            return openAI4Turbo.generate(question);
+        }
+    }
+
+    private String sendQuestionGoogle(String question, GoogleAIModels modelName) {
+        return googleGemini.generate(question);
     }
 
     private void persistAIResponse(AIResponse aiResponse) {
@@ -97,36 +123,51 @@ public class AIService {
 
         String AIQuestion = formatAiQuestion(inputMatch, team1, team2, nbaStatisticTeam1, nbaStatisticTeam2, team1HomeMatches, team1AwayMatches, team2HomeMatches, team2AwayMatches, matchesBetweenTwoTeams);
 
-        AIResponse aiResponse;
-        if (countPreviousAIRuns == 0) {
-            aiResponse = invokeAIAPI(matchName, AIQuestion, OpenAIModels.GPT_4_TURBO_PREVIEW);
-        } else {
-            aiResponse = invokeAIAPI(matchName, AIQuestion, DEFAULT_MODEL_NAME);
-        }
-        persistAIResponse(aiResponse);
+        AIResponse aiResponseOpenAI = invokeAIAPI(matchName, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
+        AIResponse aiResponseGoogle = invokeAIAPI(matchName, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
+
+        persistAIResponse(aiResponseOpenAI);
+        persistAIResponse(aiResponseGoogle);
 
         System.out.println("Finished AI for " + inputMatch.matchMame());
     }
 
     @NotNull
-    private AIResponse invokeAIAPI(String matchName, String AIQuestion, OpenAIModels model) {
+    private AIResponse invokeAIAPI(String matchName, String AIQuestion, int countPreviousAIRuns, AIProvider aiProvider) {
+        String response = "";
+        String modelName = "";
+
+        if (aiProvider == AIProvider.OPEN_AI) {
+            OpenAIModels openAIModel = countPreviousAIRuns == 0 ? OpenAIModels.GPT_4_TURBO_PREVIEW : DEFAULT_MODEL_NAME;
+            modelName = openAIModel.getName();
+            response = sendQuestionOpenAI(AIQuestion, openAIModel);
+        } else if (aiProvider == AIProvider.GOOGLE) {
+            GoogleAIModels googleAIModels = GoogleAIModels.GEMINI_PRO;
+            modelName = googleAIModels.getName();
+            response = sendQuestionGoogle(AIQuestion, googleAIModels);
+        }
+
+        String value = findPointsValueInResponse(response);
+
+        return new AIResponse(null, matchName, AIQuestion, response, aiProvider.toString(), modelName, value, LocalDateTime.now());
+    }
+
+    private String findPointsValueInResponse(String response) {
         String regexPoints = "(?<=points: )[0-9]+";
-
-        String response = sendQuestion(AIQuestion, model);
-
         String value = "XXX";
+
         Matcher matcher1 = Pattern.compile(regexPoints, Pattern.CASE_INSENSITIVE).matcher(response);
         if (matcher1.find()) {
-           value = matcher1.group();
+            value = matcher1.group();
         } else {
             System.out.println("Could not find points value in " + response);
         }
 
-        return new AIResponse(null, matchName, AIQuestion, response, model.getName(), value, LocalDateTime.now());
+        return value;
     }
 
     @NotNull
-    private static String formatAiQuestion(EventNbaPoints inputMatch, String team1, String team2,
+    private static String formatAiQuestion(EventNbaPoints inputMatch, String team1Alias, String team2Alias,
                                            NbaStatisticTeamHomeAway nbaStatisticTeam1, NbaStatisticTeamHomeAway nbaStatisticTeam2,
                                            List<NbaStatisticTeamsMatch> team1HomeMatches, List<NbaStatisticTeamsMatch> team1AwayMatches,
                                            List<NbaStatisticTeamsMatch> team2HomeMatches, List<NbaStatisticTeamsMatch> team2AwayMatches,
@@ -134,10 +175,14 @@ public class AIService {
         String recentMatchesResultString = matchesBetweenTwoTeams.stream()
                 .map(match -> match.homeTeamAlias() + " at home with " + match.homeTeamTotalPoints() + " and " + match.awayTeamAlias() + " away with " + match.awayTeamTotalPoints() + " points")
                 .collect(Collectors.joining(" and "));
+        Map<String, String> team1OtherStatistics = NbaTeamsService.teamStandingsOtherStatisticsMap.get(team1Alias).getOtherStatistics();
+        Map<String, String> team2OtherStatistics = NbaTeamsService.teamStandingsOtherStatisticsMap.get(team2Alias).getOtherStatistics();
+        NbaTeam team1 = inputMatch.team1();
+        NbaTeam team2 = inputMatch.team2();
 
         return AIMessages.AI_POINTS_MATCHES_MESSAGE.getMessage()
-                .replaceAll(":teamAlias1", team1)
-                .replaceAll(":teamAlias2", team2)
+                .replaceAll(":teamAlias1", team1Alias)
+                .replaceAll(":teamAlias2", team2Alias)
                 .replaceAll(":team1WonMatchesHome", String.valueOf(inputMatch.team1().getWinsHome()))
                 .replaceAll(":team1WonMatchesAway", String.valueOf(inputMatch.team1().getWinsAway()))
                 .replaceAll(":team1LostMatchesHome", String.valueOf(inputMatch.team1().getLossesHome()))
@@ -167,6 +212,18 @@ public class AIService {
                         .map(NbaStatisticTeamsMatch::awayTeamTotalPoints)
                         .map(String::valueOf)
                         .collect(Collectors.joining(",")))
+                .replaceAll(":team1HomeRecord", team1OtherStatistics.get(NbaOtherStatistics.HOME_RECORD.getValue()))
+                .replaceAll(":team1Streak", team1OtherStatistics.get(NbaOtherStatistics.CURRENT_STREAK.getValue()))
+                .replaceAll(":team2AwayRecord", team2OtherStatistics.get(NbaOtherStatistics.AWAY_RECORD.getValue()))
+                .replaceAll(":team2Streak", team2OtherStatistics.get(NbaOtherStatistics.CURRENT_STREAK.getValue()))
+                .replaceAll(":team1OverallPointDiff", team1OtherStatistics.get(NbaOtherStatistics.POINT_DIFFERENTIAL.getValue()))
+                .replaceAll(":team1AveragePointDiff", team1OtherStatistics.get(NbaOtherStatistics.AVERAGE_POINT_DIFFERENTIAL.getValue()))
+                .replaceAll(":team2OverallPointDiff", team2OtherStatistics.get(NbaOtherStatistics.POINT_DIFFERENTIAL.getValue()))
+                .replaceAll(":team2AveragePointDiff", team2OtherStatistics.get(NbaOtherStatistics.AVERAGE_POINT_DIFFERENTIAL.getValue()))
+                .replaceAll(":team1OverallStanding", team1.getStandingOverall().toString())
+                .replaceAll(":team1ConferenceStanding", team1.getStandingConference().toString())
+                .replaceAll(":team2OverallStanding", team2.getStandingOverall().toString())
+                .replaceAll(":team2ConferenceStanding", team2.getStandingConference().toString())
                 .replaceAll(":minPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMinPoints()))
                 .replaceAll(":minPointsAwayTeam1", String.valueOf(nbaStatisticTeam1.awayMinPoints()))
                 .replaceAll(":maxPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMaxPoints()))

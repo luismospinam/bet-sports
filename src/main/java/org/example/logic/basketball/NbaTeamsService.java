@@ -8,6 +8,7 @@ import org.example.constant.NbaTeamConstant;
 import org.example.db.basketball.NbaTeamsDao;
 import org.example.model.NbaMatch;
 import org.example.model.NbaTeam;
+import org.example.model.NbaTeamOtherStatistics;
 import org.example.util.HttpUtil;
 
 import java.sql.SQLException;
@@ -19,14 +20,17 @@ import static org.example.constant.NbaTeamConstant.conferenceTeamMap;
 
 public class NbaTeamsService {
 
+    private final NbaStatisticsService nbaStatisticsService;
     private final NbaTeamsDao nbaTeamsDao;
     private static final String URL = "https://swishanalytics.com/nba/ajax/nba-points-per-quarter-ajax.php";
     private static final ObjectMapper objectMapper = new ObjectMapper();
     public static final Map<Integer, NbaTeam> teamMap = new HashMap<>();
     public static final Map<String, NbaTeam> teamMapShortName = new HashMap<>();
+    public static Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap;
 
 
-    public NbaTeamsService(NbaTeamsDao nbaTeamsDao) {
+    public NbaTeamsService(NbaStatisticsService nbaStatisticsService, NbaTeamsDao nbaTeamsDao) {
+        this.nbaStatisticsService = nbaStatisticsService;
         this.nbaTeamsDao = nbaTeamsDao;
     }
 
@@ -69,6 +73,7 @@ public class NbaTeamsService {
 
 
     public void loadTeamStatistics() throws Exception {
+        teamStandingsOtherStatisticsMap = nbaStatisticsService.findTeamStandingsOtherStatistics();
         startProcess();
         System.out.println("Finished loading NBA team statistics");
     }
@@ -109,6 +114,10 @@ public class NbaTeamsService {
 
         teamMap.forEach((key, team) -> {
             try {
+                NbaTeamOtherStatistics standingsOtherStatistics = teamStandingsOtherStatisticsMap.get(team.getAlias());
+                team.setStandingConference(standingsOtherStatistics.getStandingConference());
+                team.setStandingOverall(standingsOtherStatistics.getStandingOverall());
+
                 if (nbaTeamsDao.teamAlreadyExist(team)) {
                     nbaTeamsDao.updateTeamValues(team);
                     System.out.println("updated team statistics " + team.getName());
@@ -118,6 +127,8 @@ public class NbaTeamsService {
                     nbaTeamsDao.persistTeamValues(team);
                     System.out.println("inserted new team statistics " + team.getName());
                 }
+
+                nbaTeamsDao.reInsertOtherStatistics(team, standingsOtherStatistics.getOtherStatistics());
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }

@@ -1,12 +1,17 @@
 package org.example.logic.basketball;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.constant.HomeAway;
 import org.example.db.basketball.NbaStatisticsDao;
 import org.example.model.NbaStatisticTeamHomeAway;
 import org.example.model.NbaStatisticTeamIndividualMatches;
 import org.example.model.NbaStatisticTeamsMatch;
+import org.example.model.NbaTeamOtherStatistics;
+import org.example.util.HttpUtil;
 
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +19,9 @@ import java.util.stream.Collectors;
 
 public class NbaStatisticsService {
 
+    private static final String CONFERENCE_STANDINGS_URL = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?region=us&lang=en&contentorigin=deportes&type=0&level=2&sort=playoffseed:asc";
+    private static final String OVERALL_STANDINGS_URL = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?region=us&lang=en&contentorigin=deportes&type=0&level=1&sort=winpercent:desc,wins:desc,gamesbehind:asc";
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private final NbaStatisticsDao nbaStatisticsDao;
 
     public NbaStatisticsService(NbaStatisticsDao nbaStatisticsDao) {
@@ -65,6 +73,53 @@ public class NbaStatisticsService {
         } catch (SQLException e) {
             e.printStackTrace();
             throw new RuntimeException("Error while finding match between teams  " + alias1 + " and " + alias2);
+        }
+    }
+
+    public Map<String, NbaTeamOtherStatistics> findTeamStandingsOtherStatistics() throws Exception {
+        Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap = new HashMap<>();
+
+        String responseOverall = HttpUtil.sendRequestMatch(OVERALL_STANDINGS_URL);
+        JsonNode jsonNodeOverall = objectMapper.readTree(responseOverall);
+        JsonNode standings = jsonNodeOverall.findValue("standings").findValue("entries");
+        int currentPositionOverall = 1;
+        for (JsonNode overallStanding : standings) {
+            String teamName = overallStanding.findValue("team").findValue("name").textValue();
+            NbaTeamOtherStatistics teamStandings = new NbaTeamOtherStatistics(teamName);
+            teamStandings.setStandingOverall(currentPositionOverall);
+            teamStandingsOtherStatisticsMap.put(teamName, teamStandings);
+            currentPositionOverall++;
+
+            for (JsonNode stats : overallStanding.findValue("stats")) {
+                JsonNode descriptionNode = stats.findValue("description");
+                if (descriptionNode != null) {
+                    String description = descriptionNode.textValue();
+                    JsonNode value = stats.findValue("value");
+                    if (value == null) {
+                        value = stats.findValue("displayValue");
+                    }
+                    teamStandings.getOtherStatistics().put(description, value.asText());
+                }
+            }
+        }
+
+
+        String responseConference = HttpUtil.sendRequestMatch(CONFERENCE_STANDINGS_URL);
+        JsonNode jsonNodeConference = objectMapper.readTree(responseConference);
+        JsonNode children = jsonNodeConference.findValue("children");
+        processConferenceStandingNode(children.get(0), teamStandingsOtherStatisticsMap);
+        processConferenceStandingNode(children.get(1), teamStandingsOtherStatisticsMap);
+
+        return teamStandingsOtherStatisticsMap;
+    }
+
+    private void processConferenceStandingNode(JsonNode node, Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap) {
+        JsonNode entries = node.findValue("entries");
+        int currentPosition = 1;
+        for (JsonNode entry : entries) {
+            String teamName = entry.findValue("team").findValue("name").textValue();
+            teamStandingsOtherStatisticsMap.get(teamName).setStandingConference(currentPosition);
+            currentPosition++;
         }
     }
 }

@@ -7,6 +7,7 @@ public record AIResponse(
         String matchName,
         String question,
         String response,
+        String aiProvider,
         String aiModel,
         String value,
         LocalDateTime responseDate

@@ -13,14 +13,14 @@ public class AIDao {
 
     public void persistNBAAIResponse(AIResponse aiResponse) throws SQLException {
         String query = """
-                INSERT INTO ai_nba_response (match_name, question, response, ai_model, value, response_date) 
-                VALUES ('%s', '%s', '%s', '%s', '%s', '%s');
+                INSERT INTO ai_nba_response (match_name, question, response, ai_provider, ai_model, value, response_date)
+                VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s');
                 """;
 
         String finalQuery = String.format(query, aiResponse.matchName(),
                 aiResponse.question().replaceAll("'", ""),
                 aiResponse.response().replaceAll("'", ""),
-                aiResponse.aiModel(), aiResponse.value(), aiResponse.responseDate());
+                aiResponse.aiProvider(), aiResponse.aiModel(), aiResponse.value(), aiResponse.responseDate());
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }

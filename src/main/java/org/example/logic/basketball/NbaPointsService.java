@@ -20,6 +20,8 @@ import java.util.Optional;
 
 public class NbaPointsService {
 
+    private static final String POINT_MATCH_URL = "https://na-offering-api.kambicdn.net/offering/v2018/betplay/betoffer/event/%s.json?lang=es_CO&market=CO&client_id=2&channel_id=1&ncid=1711254430052&includeParticipants=true";
+
     private final NbaPointsDao nbaPointsDao;
     private static final String JSON_LIST_PATH = "[]";
     private final List<String> betPaths = List.of("betOffers", JSON_LIST_PATH, "criterion", "label");
@@ -54,9 +56,12 @@ public class NbaPointsService {
                     nbaPointsDao.insertNewEvent(event, type, line, odds, date);
                 }
 
-                if ((line <= MINIMUM_POINTS_NOTIFICATION && "OT_OVER".equals(type)) || (line >= MAXIMUM_POINTS_NOTIFICATION && "OT_UNDER".equals(type))) {
+                if (line <= MINIMUM_POINTS_NOTIFICATION && "OT_OVER".equals(type)) {
                     System.out.printf("Event %s with a line of %f %s has an odd of %f %s", event.matchMame(), line, type, odds, System.lineSeparator());
-                    SoundUtil.makeSound();
+                    SoundUtil.makeSound(29100, 250);
+                } else if (line >= MAXIMUM_POINTS_NOTIFICATION && "OT_UNDER".equals(type)) {
+                    System.out.printf("Event %s with a line of %f %s has an odd of %f %s", event.matchMame(), line, type, odds, System.lineSeparator());
+                    SoundUtil.makeSound(55100, 250);
                 }
             }
 
@@ -65,11 +70,11 @@ public class NbaPointsService {
         nbaPointsDao.deleteEventsNotActiveAnymore(event.matchMame(), date);
     }
 
-    public List<EventNbaPoints> findMatchesPointsOdd(String url, List<String> matchesId) throws Exception {
+    public List<EventNbaPoints> findMatchesPointsOdd(List<String> matchesId) throws Exception {
         List<EventNbaPoints> returnList = new ArrayList<>();
 
         for (String matchId : matchesId) {
-            String finalUrl = String.format(url, matchId);
+            String finalUrl = String.format(POINT_MATCH_URL, matchId);
             String jsonResponse = HttpUtil.sendRequestMatch(finalUrl);
             JsonNode jsonNode = objectMapper.readTree(jsonResponse);
             List<JsonNode> betEvents = findBetEvent(jsonNode, betPaths);

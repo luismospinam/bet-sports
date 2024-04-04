@@ -18,6 +18,8 @@ public class NbaTeam {
     private Integer winsAway;
     private Integer lossesAway;
     private NbaTeamConference conference;
+    private Integer standingConference;
+    private Integer standingOverall;
 
 
     public NbaTeam(int id, String name, String alias, String shortName, int gamesPlayed, Double totalAverage) {
@@ -31,7 +33,7 @@ public class NbaTeam {
 
     public NbaTeam(int id, String name, String alias, String shortName, int gamesPlayed,
                    Double totalAverage, Double firstQuarterAverage, Double secondQuarterAverage, Double thirdQuarterAverage, Double fourthQuarterAverage,
-                   Integer winsHome, Integer lossesHome, Integer winsAway, Integer lossesAway, NbaTeamConference conference) {
+                   Integer winsHome, Integer lossesHome, Integer winsAway, Integer lossesAway, NbaTeamConference conference, Integer standingConference, Integer standingOverall) {
         this.id = id;
         this.name = name;
         this.alias = alias;
@@ -47,6 +49,8 @@ public class NbaTeam {
         this.winsAway = winsAway;
         this.lossesAway = lossesAway;
         this.conference = conference;
+        this.standingConference = standingConference;
+        this.standingOverall = standingOverall;
     }
 
     public Integer getWinsHome() {
@@ -167,5 +171,21 @@ public class NbaTeam {
 
     public void setConference(NbaTeamConference conference) {
         this.conference = conference;
+    }
+
+    public Integer getStandingConference() {
+        return standingConference;
+    }
+
+    public void setStandingConference(Integer standingConference) {
+        this.standingConference = standingConference;
+    }
+
+    public Integer getStandingOverall() {
+        return standingOverall;
+    }
+
+    public void setStandingOverall(Integer standingOverall) {
+        this.standingOverall = standingOverall;
     }
 }
