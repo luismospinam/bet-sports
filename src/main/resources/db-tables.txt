@@ -22,9 +22,10 @@ CREATE TABLE nba_team (
     losses_home INTEGER,
     wins_away INTEGER,
     losses_away INTEGER,
-    conference TEXT
+    conference text,
+    standing_conference INTEGER,
+    standing_overall INTEGER
 );
-
 
 CREATE TABLE bets (
     id SERIAL PRIMARY KEY,
@@ -85,7 +86,7 @@ CREATE TABLE ai_nba_response (
 
 
 CREATE TABLE nba_team_other_statistics (
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     team_id integer REFERENCES nba_team,
     key TEXT,
     value text,

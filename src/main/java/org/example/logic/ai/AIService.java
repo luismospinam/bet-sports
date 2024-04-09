@@ -174,7 +174,7 @@ public class AIService {
                                            List<NbaStatisticTeamsMatch> matchesBetweenTwoTeams) {
         String recentMatchesResultString = matchesBetweenTwoTeams.stream()
                 .map(match -> match.homeTeamAlias() + " at home with " + match.homeTeamTotalPoints() + " and " + match.awayTeamAlias() + " away with " + match.awayTeamTotalPoints() + " points")
-                .collect(Collectors.joining(" and "));
+                .collect(Collectors.joining(", "));
         Map<String, String> team1OtherStatistics = NbaTeamsService.teamStandingsOtherStatisticsMap.get(team1Alias).getOtherStatistics();
         Map<String, String> team2OtherStatistics = NbaTeamsService.teamStandingsOtherStatisticsMap.get(team2Alias).getOtherStatistics();
         NbaTeam team1 = inputMatch.team1();
@@ -224,6 +224,23 @@ public class AIService {
                 .replaceAll(":team1ConferenceStanding", team1.getStandingConference().toString())
                 .replaceAll(":team2OverallStanding", team2.getStandingOverall().toString())
                 .replaceAll(":team2ConferenceStanding", team2.getStandingConference().toString())
+
+                .replaceAll(":team1TwoPointsRatio", team1OtherStatistics.get(NbaOtherStatistics.TWO_POINT_RATIO.getValue()))
+                .replaceAll(":team1ThreePointsRatio", team1OtherStatistics.get(NbaOtherStatistics.THREE_POINT_RATIO.getValue()))
+                .replaceAll(":team1FreePointsRatio", team1OtherStatistics.get(NbaOtherStatistics.FREE_THROWS_RATIO.getValue()))
+                .replaceAll(":team1OffensiveRebounds", team1OtherStatistics.get(NbaOtherStatistics.OFFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team1DefensiveRebounds", team1OtherStatistics.get(NbaOtherStatistics.DEFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team1Steals", team1OtherStatistics.get(NbaOtherStatistics.STEALS_PER_GAME.getValue()))
+                .replaceAll(":team1Blocks", team1OtherStatistics.get(NbaOtherStatistics.BLOCKS_PER_GAME.getValue()))
+
+                .replaceAll(":team2TwoPointsRatio", team2OtherStatistics.get(NbaOtherStatistics.TWO_POINT_RATIO.getValue()))
+                .replaceAll(":team2ThreePointsRatio", team2OtherStatistics.get(NbaOtherStatistics.THREE_POINT_RATIO.getValue()))
+                .replaceAll(":team2FreePointsRatio", team2OtherStatistics.get(NbaOtherStatistics.FREE_THROWS_RATIO.getValue()))
+                .replaceAll(":team2OffensiveRebounds", team2OtherStatistics.get(NbaOtherStatistics.OFFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team2DefensiveRebounds", team2OtherStatistics.get(NbaOtherStatistics.DEFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team2Steals", team2OtherStatistics.get(NbaOtherStatistics.STEALS_PER_GAME.getValue()))
+                .replaceAll(":team2Blocks", team2OtherStatistics.get(NbaOtherStatistics.BLOCKS_PER_GAME.getValue()))
+
                 .replaceAll(":minPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMinPoints()))
                 .replaceAll(":minPointsAwayTeam1", String.valueOf(nbaStatisticTeam1.awayMinPoints()))
                 .replaceAll(":maxPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMaxPoints()))

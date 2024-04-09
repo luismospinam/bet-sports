@@ -21,6 +21,7 @@ public class NbaStatisticsService {
 
     private static final String CONFERENCE_STANDINGS_URL = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?region=us&lang=en&contentorigin=deportes&type=0&level=2&sort=playoffseed:asc";
     private static final String OVERALL_STANDINGS_URL = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?region=us&lang=en&contentorigin=deportes&type=0&level=1&sort=winpercent:desc,wins:desc,gamesbehind:asc";
+    private static final String OTHER_TEAM_STATISTICS_URL = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byteam?region=us&lang=en&contentorigin=deportes&sort=team.offensive.avgPoints:desc&limit=30";
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private final NbaStatisticsDao nbaStatisticsDao;
 
@@ -110,7 +111,39 @@ public class NbaStatisticsService {
         processConferenceStandingNode(children.get(0), teamStandingsOtherStatisticsMap);
         processConferenceStandingNode(children.get(1), teamStandingsOtherStatisticsMap);
 
+        findOffensiveDefensiveStatistics(teamStandingsOtherStatisticsMap);
+
         return teamStandingsOtherStatisticsMap;
+    }
+
+    private void findOffensiveDefensiveStatistics(Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap) throws Exception {
+        String responseOverall = HttpUtil.sendRequestMatch(OTHER_TEAM_STATISTICS_URL);
+        JsonNode jsonNodeOverall = objectMapper.readTree(responseOverall);
+        JsonNode categories = jsonNodeOverall.findValue("categories");
+        JsonNode teams = jsonNodeOverall.findValue("teams");
+
+        String categoryPrefix = "";
+        for (int i = 0; i < categories.size(); i++) {
+            JsonNode currentCategory = categories.get(i);
+            JsonNode categoryNames = currentCategory.findValue("displayNames");
+            if (categoryNames == null) {
+                currentCategory = categories.get(i-1);
+                categoryPrefix = categoryPrefix + "Opponent ";
+                categoryNames = currentCategory.findValue("displayNames");
+            }
+            for (int j = 0; j < categoryNames.size(); j++) {
+                String categoryName = categoryNames.get(j).textValue();
+                for (JsonNode team: teams) {
+                    String teamName = team.findValue("team").findValue("name").textValue();
+                    JsonNode teamCategories = team.findValue("categories");
+                    String value = teamCategories.get(i).findValue("values").get(j).asText();
+
+                    teamStandingsOtherStatisticsMap.get(teamName).getOtherStatistics().put(categoryPrefix + categoryName, value);
+                }
+            }
+
+            categoryPrefix = "";
+        }
     }
 
     private void processConferenceStandingNode(JsonNode node, Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap) {
