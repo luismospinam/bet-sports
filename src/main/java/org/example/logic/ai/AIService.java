@@ -14,9 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -35,6 +33,8 @@ public class AIService {
 
     private final AIDao aiDao;
     private final NbaStatisticsService nbaStatisticsService;
+
+    public static final Map<String, List<AIResponse>> aiNbaMatchPoints = new HashMap<>();
 
 
     static {
@@ -71,7 +71,7 @@ public class AIService {
                 .logResponses(true)
                 .build();
 
-        this.googleGemini =  VertexAiGeminiChatModel.builder()
+        this.googleGemini = VertexAiGeminiChatModel.builder()
                 .project(GCP_PROJECT_ID)
                 .location(GCP_REGION)
                 .modelName(GoogleAIModels.GEMINI_PRO.getName())
@@ -99,10 +99,21 @@ public class AIService {
     }
 
     public void createAIMessageQuestion(EventNbaPoints inputMatch) throws RuntimeException {
-        String matchName = inputMatch.matchMame() + " - " + inputMatch.gameDate().toLocalDate();
-        int countPreviousAIRuns = aiDao.findCountPreviousAIRuns(matchName);
+        String matchName = inputMatch.team1().getAlias() + " - " + inputMatch.team2().getAlias();
+        String matchNameWithDate = matchName + " - " + inputMatch.gameDate().toLocalDate();
+        int countPreviousAIRuns = aiDao.findCountPreviousAIRuns(matchNameWithDate);
         if (countPreviousAIRuns >= MAX_AI_RUNS) {
-            System.out.printf("%s has already ran the AI model %d times%s", matchName, MAX_AI_RUNS, System.lineSeparator());
+            System.out.printf("%s has already ran the AI model %d times%s", matchNameWithDate, MAX_AI_RUNS, System.lineSeparator());
+
+            if (!aiNbaMatchPoints.containsKey(matchName)) {
+                List<AIResponse> listValues;
+                try {
+                    listValues = aiDao.findPreviousAIRunsByMatchNameLike(matchName);
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                aiNbaMatchPoints.put(matchName, listValues);
+            }
             return;
         }
 
@@ -123,8 +134,12 @@ public class AIService {
 
         String AIQuestion = formatAiQuestion(inputMatch, team1, team2, nbaStatisticTeam1, nbaStatisticTeam2, team1HomeMatches, team1AwayMatches, team2HomeMatches, team2AwayMatches, matchesBetweenTwoTeams);
 
-        AIResponse aiResponseOpenAI = invokeAIAPI(matchName, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
-        AIResponse aiResponseGoogle = invokeAIAPI(matchName, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
+        AIResponse aiResponseOpenAI = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
+        AIResponse aiResponseGoogle = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
+
+        aiNbaMatchPoints.computeIfAbsent(matchName, (k) -> new ArrayList<>());
+        aiNbaMatchPoints.get(matchName).add(aiResponseOpenAI);
+        aiNbaMatchPoints.get(matchName).add(aiResponseGoogle);
 
         persistAIResponse(aiResponseOpenAI);
         persistAIResponse(aiResponseGoogle);

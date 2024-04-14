@@ -13,7 +13,7 @@ public class NbaMatchFinderService {
 
     public List<String> findMatchIds() throws Exception {
         List<String> returnList = new ArrayList<>();
-        String jsonResponse = HttpUtil.sendRequestMatch(URL);
+        String jsonResponse = HttpUtil.sendGetRequestMatch(URL);
         JsonNode jsonNode = objectMapper.readTree(jsonResponse);
         JsonNode events = jsonNode.findValue("events");
 

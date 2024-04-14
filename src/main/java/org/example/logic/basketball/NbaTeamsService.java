@@ -79,7 +79,7 @@ public class NbaTeamsService {
     }
 
     private void startProcess() throws Exception {
-        String response = HttpUtil.sendRequestMatch(URL);
+        String response = HttpUtil.sendGetRequestMatch(URL);
         JsonNode jsonNode = objectMapper.readTree(response);
 
         JsonNode teams = jsonNode.findValue("teams");

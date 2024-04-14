@@ -75,7 +75,7 @@ public class NbaPointsService {
 
         for (String matchId : matchesId) {
             String finalUrl = String.format(POINT_MATCH_URL, matchId);
-            String jsonResponse = HttpUtil.sendRequestMatch(finalUrl);
+            String jsonResponse = HttpUtil.sendGetRequestMatch(finalUrl);
             JsonNode jsonNode = objectMapper.readTree(jsonResponse);
             List<JsonNode> betEvents = findBetEvent(jsonNode, betPaths);
             EventNbaPoints event = fillEventData(jsonNode, betEvents);

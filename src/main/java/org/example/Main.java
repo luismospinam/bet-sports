@@ -1,10 +1,7 @@
 package org.example;
 
 import org.example.db.ai.AIDao;
-import org.example.db.basketball.NbaOldMatchesDao;
-import org.example.db.basketball.NbaPointsDao;
-import org.example.db.basketball.NbaStatisticsDao;
-import org.example.db.basketball.NbaTeamsDao;
+import org.example.db.basketball.*;
 import org.example.logic.ai.AIService;
 import org.example.logic.basketball.*;
 import org.example.model.EventNbaPoints;
@@ -23,6 +20,8 @@ public class Main {
     private static final NbaPointsDao nbaPointsDao = new NbaPointsDao();
     private static final NbaPointsService nbaPointsService = new NbaPointsService(nbaPointsDao);
     private static final NbaMatchFinderService nbaMatchFinderService = new NbaMatchFinderService();
+    private static final NbaBetPlacerDao nbaBetPlacerDao = new NbaBetPlacerDao();
+    private static final NbaBetPlacerService nbaBetPlacerService = new NbaBetPlacerService(nbaBetPlacerDao);
 
     private static final AIDao aiDao = new AIDao();
     private static final AIService aiService = new AIService(aiDao, nbaStatisticsService);
@@ -39,7 +38,11 @@ public class Main {
             List<String> matchesId = nbaMatchFinderService.findMatchIds();
             List<EventNbaPoints> matchesPointsOdd = nbaPointsService.findMatchesPointsOdd(matchesId);
 
+            System.out.println("---------------------------------------------------------");
             matchesPointsOdd.forEach(aiService::createAIMessageQuestion);
+            System.out.println("---------------------------------------------------------");
+            nbaBetPlacerService.placeBet(matchesPointsOdd, AIService.aiNbaMatchPoints);
+            System.out.println("---------------------------------------------------------");
 
             int sleepMins = new Random().nextInt(2, 5);
             System.out.println("Sleeping for: " + sleepMins + " minutes.");

@@ -94,6 +94,31 @@ CREATE TABLE nba_team_other_statistics (
 );
 
 
+CREATE TABLE bet_placed (
+    id SERIAL PRIMARY KEY,
+    number_matches integer,
+    total_odd numeric,
+    amount_bet_pesos numeric,
+    amount_earned numeric,
+    status TEXT,
+    date timestamp
+);
+
+
+CREATE TABLE bet_placed_matches (
+    id SERIAL PRIMARY KEY,
+    bet_placed_id integer REFERENCES bet_placed,
+    match_name TEXT,
+    type text,
+    line numeric,
+    odd numeric,
+    ai_prediction numeric,
+    outcome_id TEXT,
+    status TEXT,
+    real_points numeric
+);
+
+
 
 -----------------------------------------------------------------------------------------------
 -- useful queries

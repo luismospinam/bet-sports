@@ -80,7 +80,7 @@ public class NbaStatisticsService {
     public Map<String, NbaTeamOtherStatistics> findTeamStandingsOtherStatistics() throws Exception {
         Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap = new HashMap<>();
 
-        String responseOverall = HttpUtil.sendRequestMatch(OVERALL_STANDINGS_URL);
+        String responseOverall = HttpUtil.sendGetRequestMatch(OVERALL_STANDINGS_URL);
         JsonNode jsonNodeOverall = objectMapper.readTree(responseOverall);
         JsonNode standings = jsonNodeOverall.findValue("standings").findValue("entries");
         int currentPositionOverall = 1;
@@ -105,7 +105,7 @@ public class NbaStatisticsService {
         }
 
 
-        String responseConference = HttpUtil.sendRequestMatch(CONFERENCE_STANDINGS_URL);
+        String responseConference = HttpUtil.sendGetRequestMatch(CONFERENCE_STANDINGS_URL);
         JsonNode jsonNodeConference = objectMapper.readTree(responseConference);
         JsonNode children = jsonNodeConference.findValue("children");
         processConferenceStandingNode(children.get(0), teamStandingsOtherStatisticsMap);
@@ -117,7 +117,7 @@ public class NbaStatisticsService {
     }
 
     private void findOffensiveDefensiveStatistics(Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap) throws Exception {
-        String responseOverall = HttpUtil.sendRequestMatch(OTHER_TEAM_STATISTICS_URL);
+        String responseOverall = HttpUtil.sendGetRequestMatch(OTHER_TEAM_STATISTICS_URL);
         JsonNode jsonNodeOverall = objectMapper.readTree(responseOverall);
         JsonNode categories = jsonNodeOverall.findValue("categories");
         JsonNode teams = jsonNodeOverall.findValue("teams");

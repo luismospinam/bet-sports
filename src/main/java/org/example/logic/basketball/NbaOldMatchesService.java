@@ -50,7 +50,7 @@ public class NbaOldMatchesService {
             String currentDate = currentLocalDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String currentUrl = String.format(MATCHES_URL, currentDate);
 
-            String response = HttpUtil.sendRequestMatch(currentUrl);
+            String response = HttpUtil.sendGetRequestMatch(currentUrl);
             JsonNode jsonNode = objectMapper.readTree(response);
             JsonNode matches = jsonNode.findValue("events");
 

@@ -1,12 +1,16 @@
 package org.example.db.ai;
 
+import org.example.constant.NbaTeamConference;
 import org.example.db.DB;
 import org.example.model.AIResponse;
+import org.example.model.NbaTeam;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AIDao {
     private static final Connection dbConnection = DB.getConnection();
@@ -45,7 +49,30 @@ public class AIDao {
         }
 
         return countResponse;
+    }
 
+    public List<AIResponse> findPreviousAIRunsByMatchNameLike(String matchName) throws SQLException {
+        String query = "SELECT * FROM ai_nba_response WHERE match_name like '%:matchName%'";
+        String finalQuery = query.replaceAll(":matchName", matchName);
+
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        List<AIResponse> returnList = new ArrayList<>();
+        while (resultSet.next()) {
+            returnList.add(new AIResponse(
+                    resultSet.getInt("id"),
+                    resultSet.getString("match_name"),
+                    resultSet.getString("question"),
+                    resultSet.getString("response"),
+                    resultSet.getString("ai_provider"),
+                    resultSet.getString("ai_model"),
+                    resultSet.getString("value"),
+                    resultSet.getDate("response_date").toLocalDate().atStartOfDay()
+            ));
+        }
+
+        return returnList;
     }
 }
 
