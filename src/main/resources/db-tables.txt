@@ -109,6 +109,7 @@ CREATE TABLE bet_placed_matches (
     id SERIAL PRIMARY KEY,
     bet_placed_id integer REFERENCES bet_placed,
     match_name TEXT,
+    match_date timestamp,
     type text,
     line numeric,
     odd numeric,

@@ -58,10 +58,10 @@ public class NbaPointsService {
 
                 if (line <= MINIMUM_POINTS_NOTIFICATION && "OT_OVER".equals(type)) {
                     System.out.printf("Event %s with a line of %f %s has an odd of %f %s", event.matchMame(), line, type, odds, System.lineSeparator());
-                    SoundUtil.makeSound(29100, 250);
+                    SoundUtil.makeSound(29100, 150);
                 } else if (line >= MAXIMUM_POINTS_NOTIFICATION && "OT_UNDER".equals(type)) {
                     System.out.printf("Event %s with a line of %f %s has an odd of %f %s", event.matchMame(), line, type, odds, System.lineSeparator());
-                    SoundUtil.makeSound(55100, 250);
+                    SoundUtil.makeSound(55100, 150);
                 }
             }
 

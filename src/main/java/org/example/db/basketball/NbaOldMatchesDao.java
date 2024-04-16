@@ -8,6 +8,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 public class NbaOldMatchesDao {
@@ -39,6 +42,47 @@ public class NbaOldMatchesDao {
                 nbaMatch.gameDate());
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
+    }
+
+
+    public List<NbaMatch> findMatchesByNameAndGameDate(List<String> matchNames) throws SQLException {
+        String query = """
+                select nmm.id id, nt1.id t1id, nmm.team1_quarter1_points , nmm.team1_quarter2_points , nmm.team1_quarter3_points , nmm.team1_quarter4_points , nmm.team1_total_points ,
+                	   nt2.id t2id, nmm.team2_quarter1_points , nmm.team2_quarter2_points , nmm.team2_quarter3_points, nmm.team2_quarter4_points , nmm.team2_total_points ,
+                	   nmm.game_date
+                from nba_matches nmm, nba_team nt1, nba_team nt2
+                where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
+                    and nt1.alias || ' - ' || nt2.alias || ' - ' || date(nmm.game_date) in ('%s')
+                """;
+
+        query = query.formatted(String.join("','", matchNames));
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        if (resultSet == null) {
+            return List.of();
+        }
+
+        List<NbaMatch> returnList = new ArrayList<>();
+        while (resultSet.next()) {
+            returnList.add(new NbaMatch(
+                    resultSet.getInt("id"),
+                    resultSet.getInt("t1id"),
+                    resultSet.getDouble("team1_quarter1_points"),
+                    resultSet.getDouble("team1_quarter2_points"),
+                    resultSet.getDouble("team1_quarter3_points"),
+                    resultSet.getDouble("team1_quarter4_points"),
+                    resultSet.getDouble("team1_total_points"),
+                    resultSet.getInt("t2id"),
+                    resultSet.getDouble("team2_quarter1_points"),
+                    resultSet.getDouble("team2_quarter2_points"),
+                    resultSet.getDouble("team2_quarter3_points"),
+                    resultSet.getDouble("team2_quarter4_points"),
+                    resultSet.getDouble("team2_total_points"),
+                    resultSet.getTimestamp("game_date").toLocalDateTime().toInstant(ZoneOffset.UTC)
+            ));
+        }
+
+        return returnList;
     }
 }
 

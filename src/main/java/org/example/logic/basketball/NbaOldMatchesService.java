@@ -7,11 +7,13 @@ import org.example.model.NbaMatch;
 import org.example.model.NbaTeam;
 import org.example.util.HttpUtil;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -112,6 +114,14 @@ public class NbaOldMatchesService {
         }
 
         return Optional.empty();
+    }
+
+    public List<NbaMatch> findMatchesByNameAndGameDate(List<String> matchNames) {
+        try {
+            return nbaOldMatchesDao.findMatchesByNameAndGameDate(matchNames);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
 

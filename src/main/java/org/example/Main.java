@@ -21,7 +21,7 @@ public class Main {
     private static final NbaPointsService nbaPointsService = new NbaPointsService(nbaPointsDao);
     private static final NbaMatchFinderService nbaMatchFinderService = new NbaMatchFinderService();
     private static final NbaBetPlacerDao nbaBetPlacerDao = new NbaBetPlacerDao();
-    private static final NbaBetPlacerService nbaBetPlacerService = new NbaBetPlacerService(nbaBetPlacerDao);
+    private static final NbaBetPlacerService nbaBetPlacerService = new NbaBetPlacerService(nbaOldMatchesService, nbaBetPlacerDao);
 
     private static final AIDao aiDao = new AIDao();
     private static final AIService aiService = new AIService(aiDao, nbaStatisticsService);
@@ -42,6 +42,7 @@ public class Main {
             matchesPointsOdd.forEach(aiService::createAIMessageQuestion);
             System.out.println("---------------------------------------------------------");
             nbaBetPlacerService.placeBet(matchesPointsOdd, AIService.aiNbaMatchPoints);
+            nbaBetPlacerService.finishPreviousBetsCompleted();
             System.out.println("---------------------------------------------------------");
 
             int sleepMins = new Random().nextInt(2, 5);
