@@ -20,7 +20,12 @@ public class NbaMatchFinderService {
         for (JsonNode event: events) {
             JsonNode matchEvent = event.findPath("event");
             String id = matchEvent.findPath("id").asText();
-            returnList.add(id);
+
+            if (!"STARTED".equals(matchEvent.findValue("state").textValue())) {
+                returnList.add(id);
+            } else {
+                System.out.println("- Match " + matchEvent.findValue("name").textValue() + " has already started, not including it" + System.lineSeparator());
+            }
         }
 
         return returnList;

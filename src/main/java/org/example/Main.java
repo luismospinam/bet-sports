@@ -23,6 +23,8 @@ public class Main {
     private static final NbaBetPlacerDao nbaBetPlacerDao = new NbaBetPlacerDao();
     private static final NbaBetPlacerService nbaBetPlacerService = new NbaBetPlacerService(nbaOldMatchesService, nbaBetPlacerDao);
 
+    public static final boolean isPlayoffs = true;
+
     private static final AIDao aiDao = new AIDao();
     private static final AIService aiService = new AIService(aiDao, nbaStatisticsService);
 
@@ -41,7 +43,7 @@ public class Main {
             System.out.println("---------------------------------------------------------");
             matchesPointsOdd.forEach(aiService::createAIMessageQuestion);
             System.out.println("---------------------------------------------------------");
-            nbaBetPlacerService.placeBet(matchesPointsOdd, AIService.aiNbaMatchPoints);
+            nbaBetPlacerService.placeBet(matchesPointsOdd, AIService.aiNbaMatchPoints, false);
             nbaBetPlacerService.finishPreviousBetsCompleted();
             System.out.println("---------------------------------------------------------");
 

@@ -11,8 +11,10 @@ import org.example.model.*;
 import org.example.util.EncoderUtility;
 import org.example.util.HttpUtil;
 import org.example.util.PropertiesLoaderUtil;
+import org.example.util.SoundUtil;
 
 import java.sql.SQLException;
+import java.time.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -25,9 +27,10 @@ public class NbaBetPlacerService {
 
     private static final Map<String, Double> minimumBetLineHistory = new HashMap<>();
     private static final Map<String, Double> maximumBetLineHistory = new HashMap<>();
-    private static final Integer MIN_POINTS_UNDER = 250;
-    private static final Integer DESIRED_AVERAGE_DIFFERENCE = 20;
-    private static final Integer AMOUNT_PESOS_BET = 500;
+    private static final Integer MIN_POINTS_OVER = 205;
+    private static final Integer MIN_POINTS_UNDER = 230;
+    private static final Integer DESIRED_AVERAGE_DIFFERENCE = 10;
+    private static final Integer AMOUNT_PESOS_BET = 1000;
     private static final String BET_PLAY_LOGIN_URL = "https://betplay.com.co/reverse-proxy/accounts/sessions/complete";
     private static final String KAMBI_AUTH_URL = "https://cf-mt-auth-api.kambicdn.com/player/api/v2019/betplay/punter/login.json?market=CO&lang=es_CO&channel_id=1&client_id=2&settings=true";
     private static final String KAMBI_PLACE_BET_URL = "https://cf-mt-auth-api.kambicdn.com/player/api/v2019/betplay/coupon.json?lang=es_CO&market=CO&client_id=2&channel_id=1&";
@@ -53,7 +56,7 @@ public class NbaBetPlacerService {
         this.nbaBetPlacerDao = nbaBetPlacerDao;
     }
 
-    public void placeBet(List<EventNbaPoints> matchesPointsOdd, Map<String, List<AIResponse>> aiNbaMatchPoints) {
+    public void placeBet(List<EventNbaPoints> matchesPointsOdd, Map<String, List<AIResponse>> aiNbaMatchPoints, boolean placeAutomaticBet) throws Exception {
         Map<String, BetPlacedData> minimumMatchLine = new HashMap<>();
         Map<String, BetPlacedData> maximumMatchLine = new HashMap<>();
 
@@ -68,9 +71,20 @@ public class NbaBetPlacerService {
 
         List<List<BetPlacedData>> combinations = generateAllBetCombinations(betsSatisfyAIData);
         combinations = getCombinationsNotBetAlready(combinations);
-        if (!combinations.isEmpty()) {
-            placeBetInBetPlay(combinations);
-            persistCombinations(combinations);
+
+        if (!combinations.isEmpty() && placeAutomaticBet) {
+            if (tokenLoginKambi == null || tokenLoginKambi.isEmpty()) {
+                tokenLoginKambi = loginBetPlay();
+            }
+            String bearerToken = loginKambi(tokenLoginKambi);
+
+            for (List<BetPlacedData> combination : combinations) {
+                if (combination.size() >= 2) {
+                    TimeUnit.SECONDS.sleep(new Random().nextInt(1, 2));
+                    placeBetInBetPlay(combination, bearerToken);
+                    persistCombinations(combination);
+                }
+            }
         }
     }
 
@@ -86,15 +100,25 @@ public class NbaBetPlacerService {
                 double line = outcome.get(i).findValue("line").doubleValue() / 1000;
 
                 if ("OT_OVER".equals(type)) {
-                    BetPlacedData BetPlacedData = new BetPlacedData(matchName, eventNbaPoints.gameDate(), odds, line, id, null, "OT_OVER");
+                    BetPlacedData betPlacedData = new BetPlacedData(matchName, eventNbaPoints.gameDate(), odds, line, id, null, "OT_OVER");
                     minimumMatchLine.compute(matchName,
-                            (k, v) -> v == null ? BetPlacedData :
-                                    BetPlacedData.line() < v.line() ? BetPlacedData : v);
+                            (k, v) -> {
+                                if (v == null || (betPlacedData.line() < v.line() && betPlacedData.line() % 1 != 0)) {
+                                    return betPlacedData;
+                                } else {
+                                    return v;
+                                }
+                            });
                 } else {
                     BetPlacedData BetPlacedData = new BetPlacedData(matchName, eventNbaPoints.gameDate(), odds, line, id, null, "OT_UNDER");
                     maximumMatchLine.compute(matchName,
-                            (k, v) -> v == null ? BetPlacedData :
-                                    BetPlacedData.line() > v.line() ? BetPlacedData : v);
+                            (k, v) -> {
+                                if (v == null || (BetPlacedData.line() > v.line() && BetPlacedData.line() % 1 != 0)) {
+                                    return BetPlacedData;
+                                } else {
+                                    return v;
+                                }
+                            });
                 }
             }
         }
@@ -125,10 +149,11 @@ public class NbaBetPlacerService {
         try {
             for (List<BetPlacedData> combination : combinations) {
                 String hashBetCombination = hashBetCombination(combination);
-                Optional<BetPlacedParent> optionalBetPlacedParent;
 
-                optionalBetPlacedParent = nbaBetPlacerDao.findByHashIdentifier(hashBetCombination);
-                if (optionalBetPlacedParent.isEmpty() || calculateTotalOddFromCombinations(combination) > optionalBetPlacedParent.get().totalOdd()) {
+                Optional<BetPlacedParent> optionalBetPlacedParent = nbaBetPlacerDao.findByHashIdentifier(hashBetCombination, "total_odd", "desc");
+                if (optionalBetPlacedParent.isEmpty() ||
+                        (calculateTotalOddFromCombinations(combination) > optionalBetPlacedParent.get().totalOdd() + 0.01d) ||
+                        calculateTotalLinePointsFromCombinations(combination) < nbaBetPlacerDao.findMinTotalLinePointsParentBetByHash(hashBetCombination)) {
                     newReturnList.add(combination);
                 }
             }
@@ -137,31 +162,24 @@ public class NbaBetPlacerService {
         }
 
         return newReturnList;
-
     }
 
 
-    private void placeBetInBetPlay(List<List<BetPlacedData>> combinations) {
+    private void placeBetInBetPlay(List<BetPlacedData> combination, String bearerToken) {
         try {
-            if (tokenLoginKambi == null || tokenLoginKambi.isEmpty()) {
-                tokenLoginKambi = loginBetPlay();
-            }
-            String bearerToken = loginKambi(tokenLoginKambi);
+            ObjectNode jsonPayload = generateJsonBetPayload(combination);
+            System.out.println(jsonPayload);
 
-            for (List<BetPlacedData> combination : combinations) {
-                TimeUnit.SECONDS.sleep(2);
-                ObjectNode jsonPayload = generateJsonBetPayload(combination);
-
-                Map<String, String> headers = Map.of(
-                        "Authorization", "Bearer " + bearerToken,
-                        "Content-Type", "application/json",
-                        "Accept", "application/json, text/javascript, */*; q=0.01"
-                );
-                String betplayLogin = HttpUtil.sendPostRequestMatch(KAMBI_PLACE_BET_URL, jsonPayload.toString(), headers);
-                JsonNode jsonNode = objectMapper.readTree(betplayLogin);
-                String status = jsonNode.findValue("status").textValue();
-                System.out.println("Status of bet with " + combination.size() + " matches " + status);
-            }
+            Map<String, String> headers = Map.of(
+                    "Authorization", "Bearer " + bearerToken,
+                    "Content-Type", "application/json",
+                    "Accept", "application/json, text/javascript, */*; q=0.01"
+            );
+            String betplayLogin = HttpUtil.sendPostRequestMatch(KAMBI_PLACE_BET_URL, jsonPayload.toString(), headers);
+            JsonNode jsonNode = objectMapper.readTree(betplayLogin);
+            String status = jsonNode.findValue("status").textValue();
+            System.out.println("Status of bet with " + combination.size() + " matches " + status);
+            SoundUtil.makeSound(75100, 400);
         } catch (Exception e) {
             System.err.println("Error placing bets: " + e.getMessage());
             throw new RuntimeException(e);
@@ -202,16 +220,16 @@ public class NbaBetPlacerService {
 
     private String loginKambi(String tokenLoginKambi) throws Exception {
         String kambiPayload = """
-        {
-            "punterId":"326868",
-            "ticket":":kambi-token"
-            ,"customerSiteIdentifier":"",
-            "requestStreaming":true,
-            "channel":"WEB",
-            "market":"CO",
-            "sessionAttributes":{"fingerprintHash":"14d7f812de33de1371715c53d99cab23"}
-        }
-        """;
+                {
+                    "punterId":"326868",
+                    "ticket":":kambi-token"
+                    ,"customerSiteIdentifier":"",
+                    "requestStreaming":true,
+                    "channel":"WEB",
+                    "market":"CO",
+                    "sessionAttributes":{"fingerprintHash":"14d7f812de33de1371715c53d99cab23"}
+                }
+                """;
         kambiPayload = kambiPayload.replaceAll(":kambi-token", tokenLoginKambi);
 
         Map<String, String> headers = Map.of(
@@ -223,7 +241,10 @@ public class NbaBetPlacerService {
     }
 
     private String loginBetPlay() throws Exception {
-        long timeLong = new Date().getTime() / 1000;
+        long timeLong = LocalDateTime.now()
+                .plusMinutes(37)
+                .plusSeconds(33)
+                .toEpochSecond(OffsetDateTime.now().getOffset());
         final String inputToken = """
                 {"BPCValid":true,"iat":%d}""".formatted(timeLong);
         String inputTokenBase64 = EncoderUtility.encodeBase64(inputToken);
@@ -245,18 +266,23 @@ public class NbaBetPlacerService {
         return jsonNode.findValue("kambiToken").textValue();
     }
 
-    private void persistCombinations(List<List<BetPlacedData>> combinations) {
-        for (List<BetPlacedData> combination : combinations) {
-            double totalOdds = calculateTotalOddFromCombinations(combination);
-            String hashBetCombination = hashBetCombination(combination);
+    private void persistCombinations(List<BetPlacedData> combination) {
+        double totalOdds = calculateTotalOddFromCombinations(combination);
+        String hashBetCombination = hashBetCombination(combination);
 
-            try {
-                nbaBetPlacerDao.persistCombinations(combination, totalOdds, AMOUNT_PESOS_BET, hashBetCombination);
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            nbaBetPlacerDao.persistCombinations(combination, totalOdds, AMOUNT_PESOS_BET, hashBetCombination);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
+    }
 
+    private static Double calculateTotalLinePointsFromCombinations(List<BetPlacedData> combination) {
+        return combination.stream()
+                .map(BetPlacedData::line)
+                .mapToDouble(Double::doubleValue)
+                .reduce(Double::sum)
+                .getAsDouble();
     }
 
     private static Double calculateTotalOddFromCombinations(List<BetPlacedData> combination) {
@@ -269,7 +295,7 @@ public class NbaBetPlacerService {
 
     private static String hashBetCombination(List<BetPlacedData> combination) {
         String matchNameJoin = combination.stream()
-                .map(BetPlacedData::matchName)
+                .map(comb -> comb.matchName() + comb.matchDate().toLocalDate())
                 .collect(Collectors.joining("--"));
 
         return DigestUtils.sha256Hex(matchNameJoin);
@@ -310,13 +336,13 @@ public class NbaBetPlacerService {
                         .collect(Collectors.averagingDouble(Double::valueOf));
 
                 if ("OT_OVER".equals(BetPlacedData.betType())) {
-                    if (averagePointsAI - DESIRED_AVERAGE_DIFFERENCE >= BetPlacedData.line()) {
-                        System.out.println("You should bet " + BetPlacedDataEntry.getKey() + " with a line of " + BetPlacedData.line() + " and a odd of " + BetPlacedData.odds() + " and a AI prediction of " + averagePointsAI + " difference points of " + (averagePointsAI - BetPlacedData.line()));
+                    if (averagePointsAI - DESIRED_AVERAGE_DIFFERENCE >= BetPlacedData.line() && MIN_POINTS_OVER >= BetPlacedData.line()) {
+                        System.out.println("You should bet " + BetPlacedDataEntry.getKey() + " with a line of " + BetPlacedData.line() + " and a odd of " + BetPlacedData.odds() + " and a AI prediction of " + averagePointsAI + " difference points of " + (averagePointsAI - BetPlacedData.line()) + " outcomeId: " + BetPlacedData.outcomeId());
                         returnList.add(BetPlacedData.withAIPrediction(averagePointsAI));
                     }
                 } else {
                     if (averagePointsAI + DESIRED_AVERAGE_DIFFERENCE <= BetPlacedData.line() && BetPlacedData.line() >= MIN_POINTS_UNDER) {
-                        System.out.println("You should bet " + BetPlacedDataEntry.getKey() + " with a line of " + BetPlacedData.line() + " and a odd of " + BetPlacedData.odds() + " and a AI prediction of " + averagePointsAI + " difference points of " + (averagePointsAI - BetPlacedData.line()));
+                        System.out.println("You should bet " + BetPlacedDataEntry.getKey() + " with a line of " + BetPlacedData.line() + " and a odd of " + BetPlacedData.odds() + " and a AI prediction of " + averagePointsAI + " difference points of " + (averagePointsAI - BetPlacedData.line()) + " outcomeId: " + BetPlacedData.outcomeId());
                         returnList.add(BetPlacedData.withAIPrediction(averagePointsAI));
                     }
                 }
@@ -340,25 +366,24 @@ public class NbaBetPlacerService {
             List<NbaMatch> matchesByName = nbaOldMatchesService.findMatchesByNameAndGameDate(childrenMatchesNameGameDate);
             Map<String, Double> mapMatchPoints = matchesByName.stream()
                     .collect(Collectors.toMap(
-                            match -> NbaTeamsService.teamMap.get(match.team1Id()).getAlias() + " - " + NbaTeamsService.teamMap.get(match.team2Id()).getAlias(),
+                            match -> NbaTeamsService.teamMap.get(match.team1Id()).getAlias() + " - " + NbaTeamsService.teamMap.get(match.team2Id()).getAlias() + " - " + LocalDate.ofInstant(match.gameDate(), ZoneId.systemDefault()),
                             match -> match.team1TotalPoints() + match.team2TotalPoints()
                     ));
 
             for (BetPlacedParent betsByStatusWithChild : betsByStatusWithChildren) {
-                boolean nonExistingMatches = betsByStatusWithChildren.stream()
-                        .map(BetPlacedParent::matchesChildren)
-                        .flatMap(Collection::stream)
-                        .anyMatch(Predicate.not(children -> mapMatchPoints.containsKey(children.matchName())));
+                Optional<BetPlacedChildren> nonExistingMatches = betsByStatusWithChild.matchesChildren().stream()
+                        .filter(Predicate.not(children -> mapMatchPoints.containsKey(children.matchName() + " - " + children.matchDate().toLocalDate())))
+                        .findAny();
 
-                if (nonExistingMatches) {
-                    System.out.println("Non existing matches played for bet with id: " + betsByStatusWithChild.id());
+                if (nonExistingMatches.isPresent()) {
+                    //System.out.println("Non existing matches played for bet with id: " + betsByStatusWithChild.id() + " match not played yet " + nonExistingMatches.get().matchName());
                     continue;
                 }
 
 
                 boolean allWon = true;
                 for (BetPlacedChildren matchBet : betsByStatusWithChild.matchesChildren()) {
-                    Double totalPoints = mapMatchPoints.get(matchBet.matchName());
+                    Double totalPoints = mapMatchPoints.get(matchBet.matchName() + " - " + matchBet.matchDate().toLocalDate());
                     if (matchBet.type().equals("OT_OVER")) {
                         if (totalPoints > matchBet.line()) {
                             nbaBetPlacerDao.updateBetPlacedMatches(matchBet.withStatusAndRealPoints(BetStatus.WON, totalPoints.intValue()));

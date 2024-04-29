@@ -2,6 +2,7 @@ package org.example.logic.basketball;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.Main;
 import org.example.constant.HomeAway;
 import org.example.db.basketball.NbaStatisticsDao;
 import org.example.model.NbaStatisticTeamHomeAway;
@@ -21,7 +22,9 @@ public class NbaStatisticsService {
 
     private static final String CONFERENCE_STANDINGS_URL = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?region=us&lang=en&contentorigin=deportes&type=0&level=2&sort=playoffseed:asc";
     private static final String OVERALL_STANDINGS_URL = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?region=us&lang=en&contentorigin=deportes&type=0&level=1&sort=winpercent:desc,wins:desc,gamesbehind:asc";
-    private static final String OTHER_TEAM_STATISTICS_URL = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byteam?region=us&lang=en&contentorigin=deportes&sort=team.offensive.avgPoints:desc&limit=30";
+    private static final String OTHER_TEAM_STATISTICS_URL = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byteam?region=us&lang=en&contentorigin=deportes&sort=team.offensive.avgPoints:desc&limit=30&season=2024&seasontype=2";
+    private static final String OTHER_TEAM_STATISTICS_PLAYOFFS_URL = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byteam?region=us&lang=en&contentorigin=deportes&sort=team.offensive.avgPoints:desc&limit=30";
+
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private final NbaStatisticsDao nbaStatisticsDao;
 
@@ -111,19 +114,24 @@ public class NbaStatisticsService {
         processConferenceStandingNode(children.get(0), teamStandingsOtherStatisticsMap);
         processConferenceStandingNode(children.get(1), teamStandingsOtherStatisticsMap);
 
-        findOffensiveDefensiveStatistics(teamStandingsOtherStatisticsMap);
+        findOffensiveDefensiveStatistics(teamStandingsOtherStatisticsMap, OTHER_TEAM_STATISTICS_URL, false);
+
+        if (Main.isPlayoffs) {
+            findOffensiveDefensiveStatistics(teamStandingsOtherStatisticsMap, OTHER_TEAM_STATISTICS_PLAYOFFS_URL, true);
+        }
 
         return teamStandingsOtherStatisticsMap;
     }
 
-    private void findOffensiveDefensiveStatistics(Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap) throws Exception {
-        String responseOverall = HttpUtil.sendGetRequestMatch(OTHER_TEAM_STATISTICS_URL);
+    private void findOffensiveDefensiveStatistics(Map<String, NbaTeamOtherStatistics> teamStandingsOtherStatisticsMap, String url, boolean isPlayoffs) throws Exception {
+        String responseOverall = HttpUtil.sendGetRequestMatch(url);
         JsonNode jsonNodeOverall = objectMapper.readTree(responseOverall);
         JsonNode categories = jsonNodeOverall.findValue("categories");
         JsonNode teams = jsonNodeOverall.findValue("teams");
 
-        String categoryPrefix = "";
         for (int i = 0; i < categories.size(); i++) {
+            String categoryPrefix = isPlayoffs ? "Playoffs " : "";
+
             JsonNode currentCategory = categories.get(i);
             JsonNode categoryNames = currentCategory.findValue("displayNames");
             if (categoryNames == null) {
@@ -141,8 +149,6 @@ public class NbaStatisticsService {
                     teamStandingsOtherStatisticsMap.get(teamName).getOtherStatistics().put(categoryPrefix + categoryName, value);
                 }
             }
-
-            categoryPrefix = "";
         }
     }
 

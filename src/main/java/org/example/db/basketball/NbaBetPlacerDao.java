@@ -71,18 +71,18 @@ public class NbaBetPlacerDao {
                     BetStatus.valueOf(resultSet.getString("status")),
                     resultSet.getString("hash_identifier"),
                     resultSet.getTimestamp("date").toLocalDateTime(),
-                    findBetChildrenMatches(resultSet.getInt("id"), betStatus)
+                    findBetChildrenMatches(resultSet.getInt("id"))
             ));
         }
 
         return returnList;
     }
 
-    public List<BetPlacedChildren> findBetChildrenMatches(int id, BetStatus betStatus) throws SQLException {
+    public List<BetPlacedChildren> findBetChildrenMatches(int id) throws SQLException {
         String query = """
-                SELECT * FROM bet_placed_matches WHERE status = '%s' and bet_placed_id = %d;
+                SELECT * FROM bet_placed_matches WHERE bet_placed_id = %d;
                 """;
-        query = String.format(query, betStatus, id);
+        query = String.format(query, id);
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
         ResultSet resultSet = preparedStatement.executeQuery();
@@ -132,11 +132,14 @@ public class NbaBetPlacerDao {
         preparedStatement.execute();
     }
 
-    public Optional<BetPlacedParent> findByHashIdentifier(String hashBetCombination) throws SQLException {
+    public Optional<BetPlacedParent> findByHashIdentifier(String hashBetCombination, String orderBy, String ascDesc) throws SQLException {
+        if (ascDesc == null) {
+            ascDesc = "asc";
+        }
         String query = """
-                SELECT * FROM bet_placed WHERE hash_identifier = '%s';
+                SELECT * FROM bet_placed WHERE hash_identifier = '%s' ORDER BY %s %s;
                 """;
-        query = String.format(query, hashBetCombination);
+        query = String.format(query, hashBetCombination, orderBy, ascDesc);
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
         ResultSet resultSet = preparedStatement.executeQuery();
@@ -157,5 +160,26 @@ public class NbaBetPlacerDao {
                 null
         ));
 
+    }
+
+    public Double findMinTotalLinePointsParentBetByHash(String hash) throws SQLException {
+        String query = """
+               SELECT sum(m.line) sum, b.id
+               FROM bet_placed_matches m, bet_placed b
+               WHERE m.bet_placed_id = b.id
+                and b.hash_identifier = '%s'
+               group by b.id
+               order by sum asc
+                """;
+        query = String.format(query, hash);
+
+        PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        if (!resultSet.next()) {
+            return Double.MAX_VALUE;
+        }
+
+        return resultSet.getDouble("sum");
     }
 }

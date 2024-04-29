@@ -4,6 +4,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModelName;
 import dev.langchain4j.model.vertexai.VertexAiGeminiChatModel;
+import org.example.Main;
 import org.example.constant.*;
 import org.example.db.ai.AIDao;
 import org.example.logic.basketball.NbaStatisticsService;
@@ -19,11 +20,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.example.constant.AIMessages.AI_POINTS_PLAYOFFS_MESSAGE;
+
 public class AIService {
     private static final Properties properties;
     private static final OpenAIModels DEFAULT_MODEL_NAME = OpenAIModels.GPT_3_5_TURBO;
     private static final Integer MAX_AI_RUNS = 4;
-    private static final Integer COUNT_LAST_MATCHES = 7;
+    private static final Integer COUNT_LAST_MATCHES = 8;
     private static final Integer MAX_TOKENS_COUNT = 400;
 
     private static String OPEN_API_KEY;
@@ -74,7 +77,7 @@ public class AIService {
         this.googleGemini = VertexAiGeminiChatModel.builder()
                 .project(GCP_PROJECT_ID)
                 .location(GCP_REGION)
-                .modelName(GoogleAIModels.GEMINI_PRO.getName())
+                .modelName(GoogleAIModels.GEMINI_1_5_PRO.getName())
                 .build();
     }
 
@@ -132,7 +135,7 @@ public class AIService {
 
         List<NbaStatisticTeamsMatch> matchesBetweenTwoTeams = nbaStatisticsService.findMatchesBetweenTwoTeams(team1, team2);
 
-        String AIQuestion = formatAiQuestion(inputMatch, team1, team2, nbaStatisticTeam1, nbaStatisticTeam2, team1HomeMatches, team1AwayMatches, team2HomeMatches, team2AwayMatches, matchesBetweenTwoTeams);
+        String AIQuestion = formatAiQuestion(Main.isPlayoffs, inputMatch, team1, team2, nbaStatisticTeam1, nbaStatisticTeam2, team1HomeMatches, team1AwayMatches, team2HomeMatches, team2AwayMatches, matchesBetweenTwoTeams);
 
         AIResponse aiResponseOpenAI = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
         AIResponse aiResponseGoogle = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
@@ -168,6 +171,7 @@ public class AIService {
     }
 
     private String findPointsValueInResponse(String response) {
+        response = response.replace("**", "").replace("##", "");
         String regexPoints = "(?<=points: )[0-9]+";
         String value = "XXX";
 
@@ -182,7 +186,7 @@ public class AIService {
     }
 
     @NotNull
-    private static String formatAiQuestion(EventNbaPoints inputMatch, String team1Alias, String team2Alias,
+    private static String formatAiQuestion(boolean isPlayoffs, EventNbaPoints inputMatch, String team1Alias, String team2Alias,
                                            NbaStatisticTeamHomeAway nbaStatisticTeam1, NbaStatisticTeamHomeAway nbaStatisticTeam2,
                                            List<NbaStatisticTeamsMatch> team1HomeMatches, List<NbaStatisticTeamsMatch> team1AwayMatches,
                                            List<NbaStatisticTeamsMatch> team2HomeMatches, List<NbaStatisticTeamsMatch> team2AwayMatches,
@@ -194,6 +198,27 @@ public class AIService {
         Map<String, String> team2OtherStatistics = NbaTeamsService.teamStandingsOtherStatisticsMap.get(team2Alias).getOtherStatistics();
         NbaTeam team1 = inputMatch.team1();
         NbaTeam team2 = inputMatch.team2();
+
+        String playoffMessage = "";
+        if(isPlayoffs) {
+            playoffMessage = AI_POINTS_PLAYOFFS_MESSAGE.getMessage()
+                    .replaceAll(":teamAlias1", team1Alias)
+                    .replaceAll(":team1PlayoffGames", team1OtherStatistics.get(NbaOtherStatistics.PLAYOFF_GAMES.getValue()))
+                    .replaceAll(":team1PlayoffPoints", team1OtherStatistics.get(NbaOtherStatistics.PLAYOFF_POINTS.getValue()))
+                    .replaceAll(":team1PlayoffScoringEfficiency", team1OtherStatistics.get(NbaOtherStatistics.PLAYOFF_SCORING_EFFICIENCY.getValue()))
+                    .replaceAll(":team1PlayoffShootingEfficiency", team1OtherStatistics.get(NbaOtherStatistics.PLAYOFF_SHOOTING_EFFICIENCY.getValue()))
+                    .replaceAll(":team1PlayoffRebounds", team1OtherStatistics.get(NbaOtherStatistics.PLAYOFF_REBOUNDS.getValue()))
+                    .replaceAll(":team1PlayoffSteals", team1OtherStatistics.get(NbaOtherStatistics.PLAYOFF_STEALS.getValue()))
+
+                    .replaceAll(":teamAlias2", team2Alias)
+                    .replaceAll(":team2PlayoffGames", team2OtherStatistics.get(NbaOtherStatistics.PLAYOFF_GAMES.getValue()))
+                    .replaceAll(":team2PlayoffPoints", team2OtherStatistics.get(NbaOtherStatistics.PLAYOFF_POINTS.getValue()))
+                    .replaceAll(":team2PlayoffScoringEfficiency", team2OtherStatistics.get(NbaOtherStatistics.PLAYOFF_SCORING_EFFICIENCY.getValue()))
+                    .replaceAll(":team2PlayoffShootingEfficiency", team2OtherStatistics.get(NbaOtherStatistics.PLAYOFF_SHOOTING_EFFICIENCY.getValue()))
+                    .replaceAll(":team2PlayoffRebounds", team2OtherStatistics.get(NbaOtherStatistics.PLAYOFF_REBOUNDS.getValue()))
+                    .replaceAll(":team2PlayoffSteals", team2OtherStatistics.get(NbaOtherStatistics.PLAYOFF_STEALS.getValue()));
+        }
+
 
         return AIMessages.AI_POINTS_MATCHES_MESSAGE.getMessage()
                 .replaceAll(":teamAlias1", team1Alias)
@@ -247,6 +272,14 @@ public class AIService {
                 .replaceAll(":team1DefensiveRebounds", team1OtherStatistics.get(NbaOtherStatistics.DEFENSIVE_REBOUNDS_PER_GAME.getValue()))
                 .replaceAll(":team1Steals", team1OtherStatistics.get(NbaOtherStatistics.STEALS_PER_GAME.getValue()))
                 .replaceAll(":team1Blocks", team1OtherStatistics.get(NbaOtherStatistics.BLOCKS_PER_GAME.getValue()))
+                .replaceAll(":team1Fouls", team1OtherStatistics.get(NbaOtherStatistics.FOULS_PER_GAME.getValue()))
+                .replaceAll(":team1Assists", team1OtherStatistics.get(NbaOtherStatistics.ASSIST_PER_GAME.getValue()))
+                .replaceAll(":team1OpponentDefensiveRebounds", team1OtherStatistics.get(NbaOtherStatistics.OPPONENT_DEFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team1OpponentOffensiveRebounds", team1OtherStatistics.get(NbaOtherStatistics.OPPONENT_OFFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team1OpponentBlocks", team1OtherStatistics.get(NbaOtherStatistics.OPPONENT_BLOCKS_PER_GAME.getValue()))
+                .replaceAll(":team1Opponent3PointsAttempts", team1OtherStatistics.get(NbaOtherStatistics.OPPONENT_3_POINT_ATTEMPT.getValue()))
+                .replaceAll(":team1Opponent2PointsAttempts", team1OtherStatistics.get(NbaOtherStatistics.OPPONENT_2_POINT_ATTEMPT.getValue()))
+
 
                 .replaceAll(":team2TwoPointsRatio", team2OtherStatistics.get(NbaOtherStatistics.TWO_POINT_RATIO.getValue()))
                 .replaceAll(":team2ThreePointsRatio", team2OtherStatistics.get(NbaOtherStatistics.THREE_POINT_RATIO.getValue()))
@@ -255,6 +288,14 @@ public class AIService {
                 .replaceAll(":team2DefensiveRebounds", team2OtherStatistics.get(NbaOtherStatistics.DEFENSIVE_REBOUNDS_PER_GAME.getValue()))
                 .replaceAll(":team2Steals", team2OtherStatistics.get(NbaOtherStatistics.STEALS_PER_GAME.getValue()))
                 .replaceAll(":team2Blocks", team2OtherStatistics.get(NbaOtherStatistics.BLOCKS_PER_GAME.getValue()))
+                .replaceAll(":team2Fouls", team2OtherStatistics.get(NbaOtherStatistics.FOULS_PER_GAME.getValue()))
+                .replaceAll(":team2Assists", team2OtherStatistics.get(NbaOtherStatistics.ASSIST_PER_GAME.getValue()))
+                .replaceAll(":team2OpponentDefensiveRebounds", team2OtherStatistics.get(NbaOtherStatistics.OPPONENT_DEFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team2OpponentOffensiveRebounds", team2OtherStatistics.get(NbaOtherStatistics.OPPONENT_OFFENSIVE_REBOUNDS_PER_GAME.getValue()))
+                .replaceAll(":team2OpponentBlocks", team2OtherStatistics.get(NbaOtherStatistics.OPPONENT_BLOCKS_PER_GAME.getValue()))
+                .replaceAll(":team2Opponent3PointsAttempts", team2OtherStatistics.get(NbaOtherStatistics.OPPONENT_3_POINT_ATTEMPT.getValue()))
+                .replaceAll(":team2Opponent2PointsAttempts", team2OtherStatistics.get(NbaOtherStatistics.OPPONENT_2_POINT_ATTEMPT.getValue()))
+
 
                 .replaceAll(":minPointsHomeTeam1", String.valueOf(nbaStatisticTeam1.homeMinPoints()))
                 .replaceAll(":minPointsAwayTeam1", String.valueOf(nbaStatisticTeam1.awayMinPoints()))
@@ -265,7 +306,9 @@ public class AIService {
                 .replaceAll(":maxPointsHomeTeam2", String.valueOf(nbaStatisticTeam2.homeMaxPoints()))
                 .replaceAll(":maxPointsAwayTeam2", String.valueOf(nbaStatisticTeam2.awayMaxPoints()))
                 .replaceAll(":sizeMatches", String.valueOf(matchesBetweenTwoTeams.size()))
-                .replaceAll(":recentMatchesResults", recentMatchesResultString);
+                .replaceAll(":recentMatchesResults", recentMatchesResultString)
+
+                .replaceAll(":playoffMessage", playoffMessage);
     }
 
 }
