@@ -116,7 +116,8 @@ CREATE TABLE bet_placed_matches (
     ai_prediction numeric,
     outcome_id TEXT,
     status TEXT,
-    real_points numeric
+    real_points numeric,
+    hash_identifier TEXT
 );
 
 
@@ -263,3 +264,24 @@ select nt1.alias, nmm.team1_total_points ,
 from nba_matches nmm, nba_team nt1, nba_team nt2, ai_nba_response ai
 where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
 	and ai.match_name like '%' || nt1.alias || '%' and ai.match_name like '%' || nt2.alias || '%' and ai.match_name like '%' || date(nmm.game_date) || '%'
+
+
+-- AI average vs actual match
+with ai_average_matches
+as (
+select match_name, avg(value::INTEGER) average_points
+from ai_nba_response ai
+group by match_name
+)
+select nt1.alias, nmm.team1_total_points ,
+	   nt2.alias, nmm.team2_total_points ,
+	   nmm.game_date,
+	   (nmm.team1_total_points + nmm.team2_total_points) real_value,
+	   ai.average_points ai_value,
+	   ((nmm.team1_total_points + nmm.team2_total_points) - ai.average_points::INTEGER) difference,
+	   ai.match_name
+from nba_matches nmm, nba_team nt1, nba_team nt2, ai_average_matches ai
+where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
+	and ai.match_name like '%' || nt1.alias || '%' and ai.match_name like '%' || nt2.alias || '%' and ai.match_name like '%' || date(nmm.game_date) || '%'
+	--and ai.match_name like '%2024-11-15%'
+order by difference

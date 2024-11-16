@@ -24,7 +24,7 @@ import static org.example.constant.AIMessages.AI_POINTS_PLAYOFFS_MESSAGE;
 
 public class AIService {
     private static final Properties properties;
-    private static final OpenAIModels DEFAULT_MODEL_NAME = OpenAIModels.GPT_3_5_TURBO;
+    private static final OpenAIModels DEFAULT_MODEL_NAME = OpenAIModels.GPT_4O_MINI;
     private static final Integer MAX_AI_RUNS = 4;
     private static final Integer COUNT_LAST_MATCHES = 8;
     private static final Integer MAX_TOKENS_COUNT = 400;
@@ -137,14 +137,14 @@ public class AIService {
 
         String AIQuestion = formatAiQuestion(Main.isPlayoffs, inputMatch, team1, team2, nbaStatisticTeam1, nbaStatisticTeam2, team1HomeMatches, team1AwayMatches, team2HomeMatches, team2AwayMatches, matchesBetweenTwoTeams);
 
-        AIResponse aiResponseOpenAI = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
-        AIResponse aiResponseGoogle = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
-
         aiNbaMatchPoints.computeIfAbsent(matchName, (k) -> new ArrayList<>());
-        aiNbaMatchPoints.get(matchName).add(aiResponseOpenAI);
-        aiNbaMatchPoints.get(matchName).add(aiResponseGoogle);
 
+        AIResponse aiResponseOpenAI = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
+        aiNbaMatchPoints.get(matchName).add(aiResponseOpenAI);
         persistAIResponse(aiResponseOpenAI);
+
+        AIResponse aiResponseGoogle = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
+        aiNbaMatchPoints.get(matchName).add(aiResponseGoogle);
         persistAIResponse(aiResponseGoogle);
 
         System.out.println("Finished AI for " + inputMatch.matchMame());
@@ -156,7 +156,7 @@ public class AIService {
         String modelName = "";
 
         if (aiProvider == AIProvider.OPEN_AI) {
-            OpenAIModels openAIModel = countPreviousAIRuns == 0 ? OpenAIModels.GPT_4_TURBO_PREVIEW : DEFAULT_MODEL_NAME;
+            OpenAIModels openAIModel = countPreviousAIRuns == 0 ? OpenAIModels.GPT_4O : DEFAULT_MODEL_NAME;
             modelName = openAIModel.getName();
             response = sendQuestionOpenAI(AIQuestion, openAIModel);
         } else if (aiProvider == AIProvider.GOOGLE) {

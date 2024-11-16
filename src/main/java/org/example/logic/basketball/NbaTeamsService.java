@@ -42,7 +42,7 @@ public class NbaTeamsService {
 
             updateTeamWinsLossesMap(true, winnerTeam, HomeAway.HOME);
             updateTeamWinsLossesMap(false, loserTeam, HomeAway.AWAY);
-        } else {
+        } else { //TODO: what if the match was tied
             loserTeam = teamMap.get(nbaMatch.team1Id());
             winnerTeam = teamMap.get(nbaMatch.team2Id());
 

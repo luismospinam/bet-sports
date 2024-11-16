@@ -30,7 +30,7 @@ public enum AIMessages {
             It's currently playoffs and here are the recent playoffs statistics of :teamAlias1 and :teamAlias2.
             :teamAlias1 playoffs games played :team1PlayoffGames, points per game :team1PlayoffPoints, scoring efficiency :team1PlayoffScoringEfficiency, shooting efficiency :team1PlayoffShootingEfficiency, rebounds per game :team1PlayoffRebounds, steals per game :team1PlayoffSteals
             :teamAlias2 playoffs games played :team2PlayoffGames, points per game :team2PlayoffPoints, scoring efficiency :team2PlayoffScoringEfficiency, shooting efficiency :team2PlayoffShootingEfficiency, rebounds per game :team2PlayoffRebounds, steals per game :team2PlayoffSteals
-            Playoff matches are tight so be conservative""");
+            """);
 
     private final String message;
 
