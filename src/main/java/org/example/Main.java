@@ -40,12 +40,15 @@ public class Main {
 
         while (true) {
             List<String> matchesId = nbaMatchFinderService.findMatchIds();
-            List<EventNbaPoints> matchesPointsOdd = nbaPointsService.findMatchesPointsOdd(matchesId);
+            List<EventNbaPoints> matchesBetEventOdds = nbaPointsService.findMatchesPointsOdd(matchesId);
 
             System.out.println("---------------------------------------------------------");
-            matchesPointsOdd.forEach(aiService::createAIMessageQuestion);
+            for (EventNbaPoints matchesBetEventOdd : matchesBetEventOdds) {
+                aiService.createAIMessageQuestion(matchesBetEventOdd);
+                TimeUnit.SECONDS.sleep(5);
+            }
             System.out.println("---------------------------------------------------------");
-            nbaBetPlacerService.placeBet(matchesPointsOdd, AIService.aiNbaMatchPoints, placeAutomaticBet);
+            nbaBetPlacerService.placeBet(matchesBetEventOdds, AIService.aiNbaMatchPoints, placeAutomaticBet);
             nbaBetPlacerService.finishPreviousBetsCompleted();
             System.out.println("---------------------------------------------------------");
 

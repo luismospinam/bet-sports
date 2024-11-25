@@ -22,8 +22,9 @@ public enum AIMessages {
             :teamAlias1 also let their opponents attempt 3-Point shots of :team2Opponent3PointsAttempts and 2-Point attempts of :team2Opponent2PointsAttempts
             The :sizeMatches most recent matches results between these 2 teams were: :recentMatchesResults
             :playoffMessage
-            what do you expect the next match total points between these 2 teams to be if the :teamAlias1 are in home and :teamAlias2 are away.
-            Start the answer with 'Expected points: XXX' where XXX is the number of expected points and then give the explanation.
+
+            what do you expect the next match result between these 2 teams would be and the total number of points if the :teamAlias1 are in home and :teamAlias2 are away.
+            Give a short answer starting with Expected points: XXX where XXX is the number of expected points and in the following line ":teamAlias1: XXX - :teamAlias2: XXX" where XXX is the number of points for each team
             """),
 
     AI_POINTS_PLAYOFFS_MESSAGE("""

@@ -111,7 +111,7 @@ public class AIService {
             if (!aiNbaMatchPoints.containsKey(matchName)) {
                 List<AIResponse> listValues;
                 try {
-                    listValues = aiDao.findPreviousAIRunsByMatchNameLike(matchName);
+                    listValues = aiDao.findPreviousAIRunsByMatchNameWithDateLike(matchNameWithDate);
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
@@ -139,11 +139,11 @@ public class AIService {
 
         aiNbaMatchPoints.computeIfAbsent(matchName, (k) -> new ArrayList<>());
 
-        AIResponse aiResponseOpenAI = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI);
+        AIResponse aiResponseOpenAI = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.OPEN_AI, team1, team2);
         aiNbaMatchPoints.get(matchName).add(aiResponseOpenAI);
         persistAIResponse(aiResponseOpenAI);
 
-        AIResponse aiResponseGoogle = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE);
+        AIResponse aiResponseGoogle = invokeAIAPI(matchNameWithDate, AIQuestion, countPreviousAIRuns, AIProvider.GOOGLE, team1, team2);
         aiNbaMatchPoints.get(matchName).add(aiResponseGoogle);
         persistAIResponse(aiResponseGoogle);
 
@@ -151,7 +151,7 @@ public class AIService {
     }
 
     @NotNull
-    private AIResponse invokeAIAPI(String matchName, String AIQuestion, int countPreviousAIRuns, AIProvider aiProvider) {
+    private AIResponse invokeAIAPI(String matchName, String AIQuestion, int countPreviousAIRuns, AIProvider aiProvider, String team1, String team2) {
         String response = "";
         String modelName = "";
 
@@ -165,14 +165,30 @@ public class AIService {
             response = sendQuestionGoogle(AIQuestion, googleAIModels);
         }
 
-        String value = findPointsValueInResponse(response);
+        String pointsTeam1 = findPointsByTeamValueInResponse(response, team1, true);
+        String pointsTeam2 = findPointsByTeamValueInResponse(response, team2, false);
+        String totalPoints = findTotalPointsValueInResponse(response);
 
-        return new AIResponse(null, matchName, AIQuestion, response, aiProvider.toString(), modelName, value, LocalDateTime.now());
+        return new AIResponse(null, matchName, AIQuestion, response, aiProvider.toString(), modelName, team1, pointsTeam1, team2, pointsTeam2, totalPoints, LocalDateTime.now());
     }
 
-    private String findPointsValueInResponse(String response) {
+    private String findPointsByTeamValueInResponse(String response, String team, boolean firstTeam) {
         response = response.replace("**", "").replace("##", "");
-        String regexPoints = "(?<=points: )[0-9]+";
+        String regexPoints = firstTeam ? "(?<=" + team + ": )([0-9]+)" : "(?: - " + team + ": )([0-9]+)";
+        String pointsTeam = "XXX";
+        Matcher matcher1 = Pattern.compile(regexPoints, Pattern.CASE_INSENSITIVE).matcher(response);
+        if (matcher1.find()) {
+            pointsTeam = matcher1.group(1);
+        } else {
+            System.out.println("Could not find points value for team " + team + "in " + response);
+        }
+
+        return pointsTeam;
+    }
+
+    private String findTotalPointsValueInResponse(String response) {
+        response = response.replace("**", "").replace("##", "");
+        String regexPoints = "(?<=Expected points: )[0-9]+";
         String value = "XXX";
 
         Matcher matcher1 = Pattern.compile(regexPoints, Pattern.CASE_INSENSITIVE).matcher(response);

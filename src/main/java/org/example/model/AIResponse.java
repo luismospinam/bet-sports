@@ -9,6 +9,10 @@ public record AIResponse(
         String response,
         String aiProvider,
         String aiModel,
+        String team1,
+        String team1Points,
+        String team2,
+        String team2Points,
         String value,
         LocalDateTime responseDate
 ) {

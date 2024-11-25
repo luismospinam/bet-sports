@@ -80,6 +80,10 @@ CREATE TABLE ai_nba_response (
     response TEXT,
     ai_provider text,
     ai_model TEXT,
+    team1 TEXT,
+    team1_points TEXT,
+    team2 TEXT,
+    team2_points TEXT,
     value text,
     response_date timestamp
 );
@@ -266,10 +270,11 @@ where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
 	and ai.match_name like '%' || nt1.alias || '%' and ai.match_name like '%' || nt2.alias || '%' and ai.match_name like '%' || date(nmm.game_date) || '%'
 
 
+
 -- AI average vs actual match
 with ai_average_matches
 as (
-select match_name, avg(value::INTEGER) average_points
+select match_name, avg(value::INTEGER) average_points, max(team1) team1, avg(team1_points::INTEGER) average_points_team1, max(team2) team2, avg(team2_points::INTEGER) average_points_team2
 from ai_nba_response ai
 group by match_name
 )
@@ -279,9 +284,32 @@ select nt1.alias, nmm.team1_total_points ,
 	   (nmm.team1_total_points + nmm.team2_total_points) real_value,
 	   ai.average_points ai_value,
 	   ((nmm.team1_total_points + nmm.team2_total_points) - ai.average_points::INTEGER) difference,
+	   abs(nmm.team1_total_points -  nmm.team2_total_points) real_points_difference,
+	   abs(ai.average_points_team1 -  ai.average_points_team2) ai_points_difference,
+	   ai.team1,
+	   ai.average_points_team1 ai_team_1_points,
+	   nmm.team1_total_points real_points_team1,
+	   ai.team2,
+	   ai.average_points_team2 ai_team_2_points,
+	   nmm.team2_total_points real_points_team2,
 	   ai.match_name
 from nba_matches nmm, nba_team nt1, nba_team nt2, ai_average_matches ai
 where nmm.team1_id = nt1.id and nmm.team2_id = nt2.id
 	and ai.match_name like '%' || nt1.alias || '%' and ai.match_name like '%' || nt2.alias || '%' and ai.match_name like '%' || date(nmm.game_date) || '%'
-	--and ai.match_name like '%2024-11-15%'
+	--and ai.match_name like '%2024-11-16%'
 order by difference
+
+
+-- Apuestas ganadas / perdidas
+select status , "date"::timestamp::date date, count(*),
+sum (
+ CASE
+	  WHEN (status = 'WON') THEN (amount_earned  - amount_bet_pesos)
+	  WHEN (status = 'LOST') THEN (amount_earned)
+	  else 0
+ END
+) amount_earned,
+max(total_odd) maxima_cuota
+from bet_placed bp
+group by status, "date"::timestamp::date
+order by date, status desc

@@ -3,13 +3,11 @@ package org.example.logic.basketball;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.db.basketball.NbaPointsDao;
-import org.example.model.NbaTeam;
 import org.example.model.EventNbaPoints;
 import org.example.model.EventNbaPointsLineTypeOdd;
+import org.example.model.NbaTeam;
 import org.example.util.HttpUtil;
-import org.example.util.SoundUtil;
 
-import javax.sound.sampled.LineUnavailableException;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -25,10 +23,12 @@ public class NbaPointsService {
     private final NbaPointsDao nbaPointsDao;
     private static final String JSON_LIST_PATH = "[]";
     private final List<String> betPaths = List.of("betOffers", JSON_LIST_PATH, "criterion", "label");
-    private static final String DESIRED_BET_NAME = "Total de puntos - Prórroga incluida";
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final double MINIMUM_POINTS_NOTIFICATION = 200d;
     private static final double MAXIMUM_POINTS_NOTIFICATION = 250d;
+
+    public static final String DESIRED_BET_NAME_TOTAL_POINTS = "Total de puntos - Prórroga incluida";
+    public static final String DESIRED_BET_NAME_HANDICAP = "Hándicap - Prórroga incluida";
 
 
     public NbaPointsService(NbaPointsDao nbaPointsDao) {
@@ -39,21 +39,22 @@ public class NbaPointsService {
     public void persistEventValues(EventNbaPoints event) throws SQLException {
         LocalDateTime date = LocalDateTime.now();
         for (JsonNode betEvent : event.pointEvents()) {
+            String eventName = betEvent.findPath(betPaths.get(2)).findPath(betPaths.get(3)).asText();
             JsonNode outcomes = betEvent.findValue("outcomes");
             for (JsonNode node : outcomes) {
                 String type = node.findValue("type").textValue();
                 double line = node.findValue("line").asDouble() / 1_000;
                 double odds = node.findValue("odds").asDouble() / 1_000;
 
-                Optional<EventNbaPointsLineTypeOdd> existingEvent = nbaPointsDao.checkEventAlreadyExist(event, line, type);
+                Optional<EventNbaPointsLineTypeOdd> existingEvent = nbaPointsDao.checkEventAlreadyExist(event, eventName, line, type);
                 if (existingEvent.isPresent()) {
                     EventNbaPointsLineTypeOdd eventNbaPointsLineTypeOdd = existingEvent.get();
                     nbaPointsDao.updateExistingEventDate(eventNbaPointsLineTypeOdd, odds, date);
                     if (eventNbaPointsLineTypeOdd.odd() != odds) {
-                        nbaPointsDao.insertEventChange(event, eventNbaPointsLineTypeOdd, type, line, odds, date);;
+                        nbaPointsDao.insertEventChange(event, eventNbaPointsLineTypeOdd, type, line, odds, date);
                     }
                 } else {
-                    nbaPointsDao.insertNewEvent(event, type, line, odds, date);
+                    nbaPointsDao.insertNewEvent(event, eventName, type, line, odds, date);
                 }
 
                 if (line <= MINIMUM_POINTS_NOTIFICATION && "OT_OVER".equals(type)) {
@@ -103,7 +104,6 @@ public class NbaPointsService {
         return new EventNbaPoints(
                 events.findValue("id").asText(),
                 eventName,
-                DESIRED_BET_NAME,
                 Instant.parse(events.findValue("start").asText()).atZone(ZoneId.systemDefault()),
                 team1,
                 team2,
@@ -118,7 +118,7 @@ public class NbaPointsService {
         if (offersNode.isArray()) {
             for (JsonNode node : offersNode) {
                 String eventName = node.findPath(betPaths.get(2)).findPath(betPaths.get(3)).asText();
-                if (DESIRED_BET_NAME.equals(eventName)) {
+                if (DESIRED_BET_NAME_HANDICAP.equals(eventName) || DESIRED_BET_NAME_TOTAL_POINTS.equals(eventName)) {
                     desiredNodes.add(node);
                 }
             }

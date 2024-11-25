@@ -44,23 +44,23 @@ public class NbaPointsDao {
         preparedStatement.execute();
     }
 
-    public void insertNewEvent(EventNbaPoints event, String type, double line, double odds, LocalDateTime date) throws SQLException {
+    public void insertNewEvent(EventNbaPoints event, String eventName, String type, double line, double odds, LocalDateTime date) throws SQLException {
         String query = """
                 INSERT INTO bets (match_name, bet_name, game_date, team1_id, team2_id, bet_type, date, line, odd, betplay_id, deleted)
                 VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %f, %f, %s, false);
                 """;
-        String finalQuery = String.format(query, event.matchMame(), event.betName(), event.gameDate().toLocalDateTime(),
+        String finalQuery = String.format(query, event.matchMame(), eventName, event.gameDate().toLocalDateTime(),
                 event.team1().getId(), event.team2().getId(), type, date, line, odds, event.id());
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }
 
-    public Optional<EventNbaPointsLineTypeOdd> checkEventAlreadyExist(EventNbaPoints event, double line, String type) throws SQLException {
+    public Optional<EventNbaPointsLineTypeOdd> checkEventAlreadyExist(EventNbaPoints event, String eventName, double line, String type) throws SQLException {
         String query = """
                 SELECT * FROM bets WHERE match_name = '%s' and bet_name = '%s' and game_date = '%s' and bet_type = '%s' and line = %f;
                 """;
-        query = String.format(query, event.matchMame(), event.betName(), event.gameDate().toLocalDateTime(), type, line);
+        query = String.format(query, event.matchMame(), eventName, event.gameDate().toLocalDateTime(), type, line);
 
         PreparedStatement preparedStatement = dbConnection.prepareStatement(query);
         ResultSet resultSet = preparedStatement.executeQuery();

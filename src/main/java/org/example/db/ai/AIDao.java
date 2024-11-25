@@ -1,9 +1,7 @@
 package org.example.db.ai;
 
-import org.example.constant.NbaTeamConference;
 import org.example.db.DB;
 import org.example.model.AIResponse;
-import org.example.model.NbaTeam;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -17,14 +15,17 @@ public class AIDao {
 
     public void persistNBAAIResponse(AIResponse aiResponse) throws SQLException {
         String query = """
-                INSERT INTO ai_nba_response (match_name, question, response, ai_provider, ai_model, value, response_date)
-                VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s');
+                INSERT INTO ai_nba_response (match_name, question, response, ai_provider, ai_model, value, team1, team1_points, team2, team2_points, response_date)
+                VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
                 """;
 
         String finalQuery = String.format(query, aiResponse.matchName(),
                 aiResponse.question().replaceAll("'", ""),
                 aiResponse.response().replaceAll("'", ""),
-                aiResponse.aiProvider(), aiResponse.aiModel(), aiResponse.value(), aiResponse.responseDate());
+                aiResponse.aiProvider(), aiResponse.aiModel(), aiResponse.value(),
+                aiResponse.team1(), aiResponse.team1Points(),
+                aiResponse.team2(), aiResponse.team2Points(),
+                aiResponse.responseDate());
         PreparedStatement preparedStatement = dbConnection.prepareStatement(finalQuery);
         preparedStatement.execute();
     }
@@ -51,7 +52,7 @@ public class AIDao {
         return countResponse;
     }
 
-    public List<AIResponse> findPreviousAIRunsByMatchNameLike(String matchName) throws SQLException {
+    public List<AIResponse> findPreviousAIRunsByMatchNameWithDateLike(String matchName) throws SQLException {
         String query = "SELECT * FROM ai_nba_response WHERE match_name like '%:matchName%'";
         String finalQuery = query.replaceAll(":matchName", matchName);
 
@@ -67,6 +68,10 @@ public class AIDao {
                     resultSet.getString("response"),
                     resultSet.getString("ai_provider"),
                     resultSet.getString("ai_model"),
+                    resultSet.getString("team1"),
+                    resultSet.getString("team1_points"),
+                    resultSet.getString("team2"),
+                    resultSet.getString("team2_points"),
                     resultSet.getString("value"),
                     resultSet.getDate("response_date").toLocalDate().atStartOfDay()
             ));
