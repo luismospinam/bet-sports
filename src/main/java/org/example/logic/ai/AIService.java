@@ -101,7 +101,7 @@ public class AIService {
         }
     }
 
-    public void createAIMessageQuestion(EventNbaPoints inputMatch) throws RuntimeException {
+    public boolean createAIMessageQuestion(EventNbaPoints inputMatch) throws RuntimeException {
         String matchName = inputMatch.team1().getAlias() + " - " + inputMatch.team2().getAlias();
         String matchNameWithDate = matchName + " - " + inputMatch.gameDate().toLocalDate();
         int countPreviousAIRuns = aiDao.findCountPreviousAIRuns(matchNameWithDate);
@@ -117,7 +117,7 @@ public class AIService {
                 }
                 aiNbaMatchPoints.put(matchName, listValues);
             }
-            return;
+            return false;
         }
 
         String team1 = inputMatch.team1().getAlias();
@@ -148,6 +148,7 @@ public class AIService {
         persistAIResponse(aiResponseGoogle);
 
         System.out.println("Finished AI for " + inputMatch.matchMame());
+        return true;
     }
 
     @NotNull

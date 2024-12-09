@@ -31,16 +31,16 @@ public class NbaBetPlacerService {
 
     private static final Map<String, Double> minimumBetLineHistory = new HashMap<>();
     private static final Map<String, Double> maximumBetLineHistory = new HashMap<>();
-    private static final Integer MIN_POINTS_OVER = 205;
-    private static final Integer MIN_POINTS_UNDER = 230;
+    private static final Integer MIN_POINTS_OVER = 200;
+    private static final Integer MIN_POINTS_UNDER = 245;
 
-    private static final Integer AMOUNT_PESOS_SAFEST_BET = 1_000;
-    private static final Integer COMBINATIONS_SAFEST_MINIMUM_COUNT = 2;
-    private static final Integer COMBINATIONS_SAFEST_MAXIMUM_COUNT = 4;
+    private static final Integer AMOUNT_PESOS_SAFEST_BET = 550;
+    private static final Integer COMBINATIONS_SAFEST_MINIMUM_COUNT = 10;
+    private static final Integer COMBINATIONS_SAFEST_MAXIMUM_COUNT = 10;
 
     private static final Integer AMOUNT_PESOS_MINIMUM_BET = 500;
-    private static final Integer COMBINATIONS_AGGRESSIVE_MINIMUM_COUNT = 3;
-    private static final Integer COMBINATIONS_AGGRESSIVE_MAXIMUM_COUNT = 4;
+    private static final Integer COMBINATIONS_AGGRESSIVE_MINIMUM_COUNT = 2;
+    private static final Integer COMBINATIONS_AGGRESSIVE_MAXIMUM_COUNT = 2;
 
     // Used in Safe Bets
     private static final Integer DESIRED_TOTAL_POINTS_AVERAGE_DIFFERENCE = 20;
@@ -48,7 +48,8 @@ public class NbaBetPlacerService {
 
     // Used in aggressive Bets
     private static final Integer GRACE_POINTS_AI_AVERAGE_SUBTRACT = 8;
-    private static final Integer GRACE_POINTS_AI_HANDICAP_SUBTRACT = 10;
+    private static final Integer GRACE_POINTS_AI_HANDICAP_SUBTRACT = 15;
+    private static final Double MINIMUM_ODD = 1.5;
 
 
     private static final String BET_PLAY_LOGIN_URL = "https://betplay.com.co/reverse-proxy/accounts/sessions/complete";
@@ -69,6 +70,11 @@ public class NbaBetPlacerService {
         }
 
         NbaBetPlacerService.jsonCredentialsBetPlay = betPlayCredentials;
+
+        String tokenLoginKambi = properties.getProperty("TOKEN_LOGIN_KAMBI");
+        if (tokenLoginKambi != null && !tokenLoginKambi.isEmpty()) {
+            NbaBetPlacerService.tokenLoginKambi = tokenLoginKambi;
+        }
     }
 
 
@@ -108,8 +114,9 @@ public class NbaBetPlacerService {
         betsAverageAIData.addAll(betsHandicapAIData);
 
         if (placeAutomaticBet) {
-            List<List<BetPlacedData>> combinations = generateAllBetCombinations(betsAverageAIData);
-            combinations = getCombinationsNotBetAlready(combinations).stream()
+            List<List<BetPlacedData>> combinations = generateAllBetCombinations(betsAverageAIData, COMBINATIONS_AGGRESSIVE_MAXIMUM_COUNT);
+            System.out.println("Number of aggressive combinations: " + combinations.size() + " before filtering by min:" + COMBINATIONS_AGGRESSIVE_MINIMUM_COUNT + " max:" + COMBINATIONS_AGGRESSIVE_MAXIMUM_COUNT);
+            combinations = getCombinationsNotBetAlready(combinations).parallelStream()
                     .filter(list ->  list.size() >= COMBINATIONS_AGGRESSIVE_MINIMUM_COUNT && list.size() <= COMBINATIONS_AGGRESSIVE_MAXIMUM_COUNT)
                     .collect(Collectors.toList());
             Collections.shuffle(combinations, new Random());
@@ -120,7 +127,7 @@ public class NbaBetPlacerService {
             }
 
             placeBetOfAGivenCollection(combinations, AMOUNT_PESOS_MINIMUM_BET);
-            System.out.println("Finished placing Aggressive bets");
+            System.out.println("********* Finished placing Aggressive bets *********");
         }
     }
 
@@ -155,13 +162,15 @@ public class NbaBetPlacerService {
         betsSatisfyAIData.addAll(betsSatisfyAIHandicap);
 
         if (placeAutomaticBet) {
-            List<List<BetPlacedData>> combinations = generateAllBetCombinations(betsSatisfyAIData);
+            List<List<BetPlacedData>> combinations = generateAllBetCombinations(betsSatisfyAIData, COMBINATIONS_SAFEST_MAXIMUM_COUNT);
+            System.out.println("Number of Safe combinations: " + combinations.size() + " before filtering by min:" + COMBINATIONS_SAFEST_MINIMUM_COUNT + " max:" + COMBINATIONS_SAFEST_MAXIMUM_COUNT);
+
             combinations = getCombinationsNotBetAlready(combinations).stream()
                     .filter(list ->  list.size() >= COMBINATIONS_SAFEST_MINIMUM_COUNT && list.size() <= COMBINATIONS_SAFEST_MAXIMUM_COUNT)
                     .toList();
 
             placeBetOfAGivenCollection(combinations, AMOUNT_PESOS_SAFEST_BET);
-            System.out.println("Finished placing Safe bets");
+            System.out.println("********* Finished placing Safe bets *********");
         }
 
     }
@@ -289,7 +298,7 @@ public class NbaBetPlacerService {
                     double odds = outcome.get(i).findValue("odds").doubleValue() / 1000;
                     double line = outcome.get(i).findValue("line").doubleValue() / 1000;
 
-                    if ("OT_OVER".equals(type) && line == desiredLineAveragePointsAI) {
+                    if ("OT_OVER".equals(type) && line == desiredLineAveragePointsAI && odds >= MINIMUM_ODD) {
                         BetPlacedData betPlacedData = new BetPlacedData(eventNbaPoints.id(), matchName, eventNbaPoints.gameDate(), odds, line, id, averagePointsAI, "OT_OVER");
                         averageAIMatchLine.put(matchName, betPlacedData);
                         break outerLoop;
@@ -330,7 +339,7 @@ public class NbaBetPlacerService {
                 double odds = outcome.get(index).findValue("odds").doubleValue() / 1000;
                 double line = outcome.get(index).findValue("line").doubleValue() / 1000;
 
-                if (line == desiredHandicapPointsAI) {
+                if (line == desiredHandicapPointsAI && odds >= MINIMUM_ODD) {
                     BetPlacedData betPlacedData = new BetPlacedData(eventNbaPoints.id(),matchName, eventNbaPoints.gameDate(), odds, line, id, aiDifference, type);
                     averageAIMatchLine.put(matchName, betPlacedData);
                     break;
@@ -625,8 +634,8 @@ public class NbaBetPlacerService {
 
     }
 
-    private List<List<BetPlacedData>> generateAllBetCombinations(List<BetPlacedData> betsSatisfyAIData) {
-        int combinationSize = betsSatisfyAIData.size();
+    private List<List<BetPlacedData>> generateAllBetCombinations(List<BetPlacedData> betsSatisfyAIData, Integer maxSize) {
+        int combinationSize = maxSize;
         List<List<BetPlacedData>> combinations = new ArrayList<>();
 
         for (int size = 1; size <= combinationSize; size++) {

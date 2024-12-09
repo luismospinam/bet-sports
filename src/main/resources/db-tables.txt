@@ -313,3 +313,21 @@ max(total_odd) maxima_cuota
 from bet_placed bp
 group by status, "date"::timestamp::date
 order by date, status desc
+
+
+-- simulation case single bet of a given amount (1000)
+with distinct_bets as(
+	select match_name, match_date, odd, status, 1000 as bet_amount
+	from bet_placed_matches bpm
+	where status in ('LOST', 'WON')
+	group by match_name, match_date, odd, status
+)
+select sum (
+ CASE
+	  WHEN (status = 'WON') THEN (distinct_bets.bet_amount * odd)
+	  WHEN (status = 'LOST') THEN (distinct_bets.bet_amount)
+	  else 0
+ END
+) amount_earned, count(*), bet_amount * count(*), status
+from distinct_bets
+group by status, bet_amount

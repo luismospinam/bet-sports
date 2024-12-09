@@ -44,8 +44,10 @@ public class Main {
 
             System.out.println("---------------------------------------------------------");
             for (EventNbaPoints matchesBetEventOdd : matchesBetEventOdds) {
-                aiService.createAIMessageQuestion(matchesBetEventOdd);
-                TimeUnit.SECONDS.sleep(5);
+                boolean didItRun = aiService.createAIMessageQuestion(matchesBetEventOdd);
+                if (didItRun)   {
+                    TimeUnit.SECONDS.sleep(10);
+                }
             }
             System.out.println("---------------------------------------------------------");
             nbaBetPlacerService.placeBet(matchesBetEventOdds, AIService.aiNbaMatchPoints, placeAutomaticBet);
